@@ -1,0 +1,6 @@
+@Platform.StorefrontApi_HostAddress = http://localhost:5064
+
+GET {{Platform.StorefrontApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
