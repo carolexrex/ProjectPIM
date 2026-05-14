@@ -9,4 +9,7 @@
     <Project Path="src/Platform.StorefrontApi/Platform.StorefrontApi.csproj" />
     <Project Path="src/Platform.Worker/Platform.Worker.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Platform.Tests/Platform.Tests.csproj" />
+  </Folder>
 </Solution>

@@ -1,93 +1,99 @@
 # Local Database Bootstrap
 
-The current development path is SQL Server.
+The current development path is PostgreSQL.
 
 ## Default development settings
 
 `src/Platform.Api/appsettings.Development.json` now uses:
 
-- `Persistence:Provider = SqlServer`
-- `ConnectionStrings:Platform = Server=localhost;Database=ProjektPim;Integrated Security=True;TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true`
+- `Persistence:Provider = PostgreSql`
+- `ConnectionStrings:Platform = Host=localhost;Port=5432;Database=projektpim;Username=postgres;Password=postgres`
 
-## Intended authentication strategy
+## Recommended local setup
 
-Use different database auth strategies for different environments:
-
-- local development: Windows authentication
-- self-hosted production: SQL authentication with a dedicated application login
-- managed cloud production later: managed identity / token-based auth if the platform supports it
-
-This means:
-
-- local development can use your own Windows account for convenience
-- production should not depend on an interactive Windows login
-- production should not use `sa`
-- production runtime credentials and migration credentials should be separated
-
-## Bootstrap the database
-
-Run the local bootstrap script from the repository root:
+Run PostgreSQL locally with Docker:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-localdb.ps1
+docker run --name projektpim-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=projektpim -p 5432:5432 -d postgres:17
 ```
 
-What it does:
+## One-command dev startup
 
-1. Creates the `ProjektPim` database if it does not already exist
-2. Applies `sql/001_initial_schema.sql`
-3. Applies `sql/002_seed_baseline.sql`
+To start PostgreSQL, apply migrations, build the solution, and launch both the admin API and backoffice together:
 
-The script now uses `sqlcmd`, not `Invoke-Sqlcmd`, because `sqlcmd` is available on this machine and `Invoke-Sqlcmd` is not.
-
-If you want to target a different instance:
+Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-localdb.ps1 -ServerInstance "localhost"
+./scripts/start-dev.ps1
 ```
 
-or:
+macOS or Linux:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-localdb.ps1 -ServerInstance "(localdb)\MSSQLLocalDB"
+```bash
+bash ./scripts/start-dev.sh
 ```
 
-If Windows integrated authentication fails on this machine, use a SQL login instead:
+Both scripts:
+
+- ensure the `projektpim-postgres` container exists and is running
+- wait for PostgreSQL readiness
+- apply EF migrations unless you opt out
+- build the solution
+- start `Platform.Api` on `http://localhost:5053`
+- start `Platform.Backoffice` on `http://localhost:5168`
+- write logs and pid files under `.dev-runtime/`
+
+Optional flags:
+
+- `-SkipDatabaseStart` or `--skip-db`: skip Docker/container startup if PostgreSQL is already running
+- `-SkipMigrate` or `--skip-migrate`: skip EF migration application
+
+To stop the same stack:
+
+Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-localdb.ps1 -ServerInstance "localhost" -Username "app_login" -Password "<your-password>"
+./scripts/stop-dev.ps1
 ```
 
-You can also override the API connection string without storing a password in `appsettings.Development.json`:
+macOS or Linux:
 
-```powershell
-$env:ConnectionStrings__Platform = "Server=localhost;Database=ProjektPim;User ID=app_login;Password=<your-password>;TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true"
+```bash
+bash ./scripts/stop-dev.sh
 ```
 
-Recommended production shape:
+## Connection string override
+
+You can override the API connection string without editing source-controlled config:
 
 ```powershell
-$env:ConnectionStrings__Platform = "Server=sql-prod-host;Database=ProjektPim;User ID=app_login;Password=<your-password>;TrustServerCertificate=False;Encrypt=True;MultipleActiveResultSets=true"
+$env:ConnectionStrings__Platform = "Host=localhost;Port=5432;Database=projektpim;Username=postgres;Password=<your-password>"
 ```
 
 ## EF design-time support
 
-`src/Platform.Infrastructure/Persistence/DesignTimePlatformDbContextFactory.cs` was added so `dotnet ef` can resolve `PlatformDbContext` from the API configuration when the local SDK/tooling issue is fixed.
+`src/Platform.Infrastructure/Persistence/DesignTimePlatformDbContextFactory.cs` resolves `PlatformDbContext` from API configuration.
 
-Expected next command once tooling is healthy:
+Restore local tools if needed:
 
 ```powershell
-dotnet ef migrations add InitialCatalog --project .\src\Platform.Infrastructure\Platform.Infrastructure.csproj --startup-project .\src\Platform.Api\Platform.Api.csproj
+dotnet tool restore
 ```
 
-## Current limitation
+Apply the current migrations:
 
-The repository still has a local `.NET 10` restore/build issue. Also, from this shell environment:
+```powershell
+dotnet build Platform.slnx -m:1 -nr:false
+dotnet tool run dotnet-ef database update --no-build --project .\src\Platform.Infrastructure\Platform.Infrastructure.csproj --startup-project .\src\Platform.Infrastructure\Platform.Infrastructure.csproj --context Platform.Infrastructure.Persistence.PlatformDbContext
+```
 
-- `Invoke-Sqlcmd` is not installed
-- `MSSQLLocalDB` reports a registry/configuration error
-- `MSSQLSERVER` is installed with shared memory enabled, TCP off, named pipes off, and mixed-mode auth enabled
-- Windows integrated authentication currently fails with `Failed to generate SSPI context`
-- `sqlcmd` currently fails before login when using the Windows auth path
+## Current development status
 
-So the intended default remains `localhost` with Windows authentication for local development, but I was not able to complete a live end-to-end SQL exercise from this shell environment.
+- The initial PostgreSQL migration and seed migration already exist.
+- The solution builds with:
+
+```powershell
+$env:DOTNET_CLI_HOME = "C:\Projects\ProjectPIM\.dotnet-cli"
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1"
+dotnet build Platform.slnx -m:1 -nr:false
+```

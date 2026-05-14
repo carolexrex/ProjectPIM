@@ -1,0 +1,92 @@
+@model BrandListPageViewModel
+@{
+    ViewData["Title"] = "Brands";
+    ViewData["PageTitle"] = "Brands";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Brand code or translation name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Brand</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching brands</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Brand</th>
+                    <th>Website</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Brands.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No brands found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var brand in Model.Brands)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@brand.Code</div>
+                            <div class="table-secondary">@brand.DefaultName</div>
+                        </td>
+                        <td>@brand.WebsiteUrl</td>
+                        <td><span class="status-pill">@brand.Status</span></td>
+                        <td>@brand.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@brand.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

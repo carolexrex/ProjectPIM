@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Platform Backoffice</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="app-nav">
+            <div class="brand-block">
+                <div class="brand-mark">PIM</div>
+                <div>
+                    <div class="eyebrow">Platform</div>
+                    <div class="brand-name">Backoffice</div>
+                </div>
+            </div>
+            <nav class="nav-links">
+                <a asp-controller="Products" asp-action="Index">Products</a>
+                <a asp-controller="Brands" asp-action="Index">Brands</a>
+                <a asp-controller="Categories" asp-action="Index">Categories</a>
+                <a asp-controller="ProductAttributes" asp-action="Index">Attributes</a>
+                <a asp-controller="PriceLists" asp-action="Index">Price Lists</a>
+                <a asp-controller="InventoryLocations" asp-action="Index">Inventory</a>
+                <a asp-controller="Customers" asp-action="Index">Customers</a>
+                <a asp-controller="Companies" asp-action="Index">Companies</a>
+                <a asp-controller="Carts" asp-action="Index">Carts</a>
+                <a asp-controller="Orders" asp-action="Index">Orders</a>
+                <a asp-controller="Markets" asp-action="Index">Markets</a>
+                <a asp-controller="Channels" asp-action="Index">Channels</a>
+                <a asp-controller="MediaAssets" asp-action="Index">Media</a>
+                <a asp-controller="Products" asp-action="New">Create Product</a>
+            </nav>
+            <div class="nav-note">
+                API-first admin surface.
+                Run the UI only when you need it.
+            </div>
+        </aside>
+        <main class="app-main">
+            <header class="topbar">
+                <div>
+                    <div class="eyebrow">Catalog Control</div>
+                    <h1>@ViewData["PageTitle"]</h1>
+                </div>
+                <div class="topbar-actions">
+                    <div class="topbar-meta">Headless core, optional UI host</div>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="user-strip">
+                            <span>@(User.FindFirst("display_name")?.Value ?? User.Identity?.Name)</span>
+                            <form method="post" asp-controller="Auth" asp-action="Logout">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="button button-ghost">Sign Out</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </header>
+
+            @if (TempData["FlashMessage"] is string flashMessage)
+            {
+                <div class="flash-success">@flashMessage</div>
+            }
+
+            @RenderBody()
+        </main>
+    </div>
+</body>
+</html>

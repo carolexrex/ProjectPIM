@@ -1,0 +1,149 @@
+@model ProductAttributeDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Attribute.Code;
+    ViewData["PageTitle"] = Model.Attribute.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Attribute</div>
+        <h2>@Model.Attribute.Code</h2>
+        <p>@Model.Attribute.Name</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Attribute.Status</span>
+        <span>Updated @Model.Attribute.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Attribute</h3>
+        <div class="panel-intro">Option lines use `CODE=Value`. One option per line.</div>
+
+        <form method="post" asp-action="Update" asp-route-id="@Model.Attribute.Id" class="editor-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Attribute.Id" type="hidden" />
+            <input asp-for="Attribute.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Attribute.Code" />
+                <span asp-validation-for="Attribute.Code" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="Attribute.Name" />
+                <span asp-validation-for="Attribute.Name" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Scope</span>
+                <select asp-for="Attribute.Scope">
+                    @foreach (var scope in Model.Attribute.ScopeOptions)
+                    {
+                        @if (string.Equals(Model.Attribute.Scope, scope, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@scope" selected>@scope</option>
+                        }
+                        else
+                        {
+                            <option value="@scope">@scope</option>
+                        }
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Data Type</span>
+                <select asp-for="Attribute.DataType">
+                    @foreach (var dataType in Model.Attribute.DataTypeOptions)
+                    {
+                        @if (string.Equals(Model.Attribute.DataType, dataType, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@dataType" selected>@dataType</option>
+                        }
+                        else
+                        {
+                            <option value="@dataType">@dataType</option>
+                        }
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Sort Order</span>
+                <input asp-for="Attribute.SortOrder" />
+                <span asp-validation-for="Attribute.SortOrder" class="field-error"></span>
+            </label>
+
+            <label class="field field-checkbox">
+                <input asp-for="Attribute.IsVariantDefining" />
+                <span>Variant-defining</span>
+            </label>
+
+            <label class="field field-checkbox">
+                <input asp-for="Attribute.IsFilterable" />
+                <span>Filterable</span>
+            </label>
+
+            <label class="field field-checkbox">
+                <input asp-for="Attribute.IsRequired" />
+                <span>Required</span>
+            </label>
+
+            <label class="field field-full">
+                <span>Options</span>
+                <textarea asp-for="Attribute.OptionsText" rows="8"></textarea>
+                <span asp-validation-for="Attribute.OptionsText" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Attribute</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Attribute.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Attribute.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Attribute</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <h3>Resolved Options</h3>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Value</th>
+                        <th>Sort</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Options.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3" class="empty-state">No options configured.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var option in Model.Options)
+                    {
+                        <tr>
+                            <td>@option.Code</td>
+                            <td>@option.Value</td>
+                            <td>@option.SortOrder</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

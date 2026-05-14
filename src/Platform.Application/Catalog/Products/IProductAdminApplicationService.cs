@@ -8,10 +8,15 @@ namespace Platform.Application.Catalog.Products;
 public interface IProductAdminApplicationService
 {
     Task<PagedResponse<ProductSummaryDto>> ListAsync(ListProductsQuery query, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ProductLookupDto>> ListLookupsAsync(ListProductLookupsQuery query, CancellationToken cancellationToken);
     Task<ProductDetailsDto?> GetByIdAsync(GetProductByIdQuery query, CancellationToken cancellationToken);
     Task<ProductDetailsDto> CreateAsync(CreateProductCommand command, CancellationToken cancellationToken);
     Task<ProductDetailsDto?> UpdateAsync(UpdateProductCommand command, CancellationToken cancellationToken);
     Task<ProductDetailsDto?> ArchiveAsync(ArchiveProductCommand command, CancellationToken cancellationToken);
     Task<ProductDetailsDto?> AssignStatusAsync(AssignProductStatusCommand command, CancellationToken cancellationToken);
+    Task<ProductDetailsDto?> UpsertMediaAsync(UpsertProductMediaCommand command, CancellationToken cancellationToken);
+    Task<ProductDetailsDto?> RemoveMediaAsync(RemoveProductMediaCommand command, CancellationToken cancellationToken);
+    Task<ProductDetailsDto?> UpsertRelationAsync(UpsertProductRelationCommand command, CancellationToken cancellationToken);
+    Task<ProductDetailsDto?> RemoveRelationAsync(RemoveProductRelationCommand command, CancellationToken cancellationToken);
     Task<ProductTranslationDto?> UpsertTranslationAsync(UpsertProductTranslationCommand command, CancellationToken cancellationToken);
 }

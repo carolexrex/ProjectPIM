@@ -1,0 +1,49 @@
+@model BrandCreateViewModel
+@{
+    ViewData["Title"] = "Create Brand";
+    ViewData["PageTitle"] = "Create Brand";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Define a reusable catalog brand. Products reference brands by id through the admin API.</p>
+    </div>
+
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Website Url</span>
+            <input asp-for="WebsiteUrl" />
+            <span asp-validation-for="WebsiteUrl" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Sort Order</span>
+            <input asp-for="SortOrder" />
+            <span asp-validation-for="SortOrder" class="field-error"></span>
+        </label>
+
+        <label class="field field-full">
+            <span>Logo Asset</span>
+            <select asp-for="LogoMediaAssetId">
+                <option value="">None</option>
+                @foreach (var asset in Model.LogoOptions)
+                {
+                    <option value="@asset.Id">@asset.Label</option>
+                }
+            </select>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Brand</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

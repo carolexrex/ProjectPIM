@@ -1,0 +1,89 @@
+@model ProductAttributeListPageViewModel
+@{
+    ViewData["Title"] = "Attributes";
+    ViewData["PageTitle"] = "Attributes";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Attribute code or name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <input type="text" name="status" value="@Model.Status" placeholder="Active or Archived" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Scope</span>
+                <input type="text" name="scope" value="@Model.Scope" placeholder="Variant or Product" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Data Type</span>
+                <input type="text" name="dataType" value="@Model.DataType" placeholder="Select, Text, Number" />
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Attribute</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching attributes</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Scope</th>
+                    <th>Type</th>
+                    <th>Flags</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Attributes.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No attributes found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var item in Model.Attributes)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@item.Code</div>
+                            <div class="table-secondary">@item.Name</div>
+                        </td>
+                        <td>@item.Scope</td>
+                        <td>@item.DataType</td>
+                        <td>
+                            <div>@(item.IsVariantDefining ? "Variant-defining" : "Descriptive")</div>
+                            <div class="table-secondary">@item.OptionCount options</div>
+                        </td>
+                        <td>@item.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@item.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

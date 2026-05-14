@@ -1,15 +1,18 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Api.Controllers;
 using Platform.Application.Catalog.Products;
 using Platform.Application.Catalog.Products.Commands;
 using Platform.Application.Catalog.Products.Queries;
+using Platform.Application.Security;
 using Platform.Contracts.Catalog.Products;
 using Platform.Contracts.Common;
 
 namespace Platform.Api.Controllers.Admin;
 
 [ApiController]
+[Authorize(Policy = AdminPolicies.CatalogRead)]
 [Route("api/admin/products")]
 public sealed class ProductsController : ApiControllerBase
 {
@@ -40,7 +43,23 @@ public sealed class ProductsController : ApiControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("lookup")]
+    [ProducesResponseType(typeof(IReadOnlyList<ProductLookupDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ProductLookupDto>>> LookupAsync(
+        [FromQuery] string? search,
+        [FromQuery] string? status = "Active",
+        [FromQuery] bool? hasVariants = null,
+        [FromQuery] Guid? excludedProductId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _productService.ListLookupsAsync(
+            new ListProductLookupsQuery(search, status, hasVariants, excludedProductId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}", Name = "GetAdminProductById")]
     [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductDetailsDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -50,6 +69,7 @@ public sealed class ProductsController : ApiControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
     [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status201Created)]
     public async Task<ActionResult<ProductDetailsDto>> CreateAsync(
         [FromBody] CreateProductRequest request,
@@ -65,16 +85,19 @@ public sealed class ProductsController : ApiControllerBase
                 request.TaxCategoryCode,
                 request.UnitOfMeasure,
                 request.HasVariants,
+                request.CategoryIds,
+                request.AttributeValues.Select(x => new CreateProductAttributeValueCommand(x.ProductAttributeId, x.AttributeOptionId, x.ValueText)).ToList(),
                 request.Weight,
                 request.Length,
                 request.Width,
                 request.Height),
             cancellationToken);
 
-        return CreatedAtAction(nameof(GetByIdAsync), new { id = created.Id }, created);
+        return CreatedAtRoute("GetAdminProductById", new { id = created.Id }, created);
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
     [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductDetailsDto>> UpdateAsync(
@@ -91,6 +114,8 @@ public sealed class ProductsController : ApiControllerBase
                 request.ProductStatusDefinitionId,
                 request.TaxCategoryCode,
                 request.UnitOfMeasure,
+                request.CategoryIds,
+                request.AttributeValues.Select(x => new CreateProductAttributeValueCommand(x.ProductAttributeId, x.AttributeOptionId, x.ValueText)).ToList(),
                 request.Weight,
                 request.Length,
                 request.Width,
@@ -102,6 +127,7 @@ public sealed class ProductsController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/archive")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
     [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductDetailsDto>> ArchiveAsync(Guid id, CancellationToken cancellationToken)
@@ -111,6 +137,7 @@ public sealed class ProductsController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/status")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
     [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductDetailsDto>> AssignStatusAsync(
@@ -125,7 +152,80 @@ public sealed class ProductsController : ApiControllerBase
         return updated is null ? NotFoundProblem("Product", id) : Ok(updated);
     }
 
+    [HttpPost("{id:guid}/media")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
+    [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductDetailsDto>> UpsertMediaAsync(
+        Guid id,
+        [FromBody] UpsertProductMediaRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _productService.UpsertMediaAsync(
+            new UpsertProductMediaCommand(id, request.MediaAssetId, request.Type, request.SortOrder, request.IsPrimary, request.RowVersion),
+            cancellationToken);
+
+        return updated is null ? NotFoundProblem("Product", id) : Ok(updated);
+    }
+
+    [HttpPost("{id:guid}/media/{productMediaId:guid}/remove")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
+    [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductDetailsDto>> RemoveMediaAsync(
+        Guid id,
+        Guid productMediaId,
+        [FromBody] RemoveProductMediaRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _productService.RemoveMediaAsync(
+            new RemoveProductMediaCommand(id, productMediaId, request.RowVersion),
+            cancellationToken);
+
+        return updated is null ? NotFoundProblem("Product", id) : Ok(updated);
+    }
+
+    [HttpPost("{id:guid}/relations")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
+    [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductDetailsDto>> UpsertRelationAsync(
+        Guid id,
+        [FromBody] UpsertProductRelationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _productService.UpsertRelationAsync(
+            new UpsertProductRelationCommand(
+                id,
+                request.TargetProductId,
+                request.RelationType,
+                request.Quantity,
+                request.SortOrder,
+                request.RowVersion),
+            cancellationToken);
+
+        return updated is null ? NotFoundProblem("Product", id) : Ok(updated);
+    }
+
+    [HttpPost("{id:guid}/relations/{relationId:guid}/remove")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
+    [ProducesResponseType(typeof(ProductDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductDetailsDto>> RemoveRelationAsync(
+        Guid id,
+        Guid relationId,
+        [FromBody] RemoveProductRelationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _productService.RemoveRelationAsync(
+            new RemoveProductRelationCommand(id, relationId, request.RowVersion),
+            cancellationToken);
+
+        return updated is null ? NotFoundProblem("Product", id) : Ok(updated);
+    }
+
     [HttpPut("{id:guid}/translations/{cultureCode}")]
+    [Authorize(Policy = AdminPolicies.CatalogWrite)]
     [ProducesResponseType(typeof(ProductTranslationDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductTranslationDto>> UpsertTranslationAsync(

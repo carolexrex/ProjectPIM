@@ -13,7 +13,7 @@ It covers:
 - cross-cutting concerns
 - implementation rules
 
-This is the implementation-oriented companion to [admin-api-contract-v1.md](c:\Users\SpotonAlexV\source\repos\Projekt PIM\docs\admin-api-contract-v1.md).
+This is the implementation-oriented companion to [admin-api-contract-v1.md](./admin-api-contract-v1.md).
 
 ## Goals
 
@@ -66,6 +66,15 @@ Recommended modules:
 - `Orders`
 - `CustomFields`
 - `Ai`
+
+Agentic shopping should not become its own admin module in v1.
+
+Instead it should shape:
+
+- `Catalog` response structure
+- `Customers` and `Companies` permission/context handling
+- `Cart` and `Orders` workflow design
+- future `StorefrontApi` read models and action endpoints
 
 ## Controller Design
 
@@ -136,6 +145,11 @@ Controllers should not:
 - `AiPromptTemplatesController`
 - `AiJobsController`
 - `AiSuggestionsController`
+
+## Audit and Identity
+
+- `AuditLogsController`
+- `AdminUsersController`
 
 ## Routing Style
 
@@ -250,6 +264,15 @@ Reason:
 
 - admin screens need joined, shaped views
 - domain entities should stay focused on business behavior
+
+For future agent-facing consumers, prefer read models that expose:
+
+- stable IDs
+- explicit commercial state
+- resolved price/availability fields
+- machine-readable failure reasons
+
+Do not make agent consumers reverse-engineer HTML-oriented or backoffice-shaped responses.
 
 ## Module Ownership
 
@@ -525,6 +548,14 @@ Examples:
 
 Audit writing should be application-layer infrastructure, not duplicated in every controller.
 
+For the current repo shape, an EF-backed audit capture path is acceptable if:
+
+- controllers stay thin
+- actor identity is resolved through an application-facing accessor
+- audit storage remains queryable through an explicit admin module
+
+Do not make the CMS the source of truth for admin actor identity or commerce write auditability.
+
 ## Events
 
 Use internal domain events and external integration events.
@@ -587,6 +618,18 @@ Example: `GET /api/admin/orders`
 13. carts
 14. custom fields
 15. AI admin endpoints
+
+## Agentic Shopping Implications
+
+This repository should prepare for agentic shopping in the platform layer, not primarily in a CMS.
+
+Implementation guidance:
+
+- keep commercial source-of-truth in PIM/commerce modules
+- keep editorial storytelling and campaign composition in CMS or storefront presentation layers
+- make cart and order commands deterministic and idempotent
+- make storefront reads expose buyability and availability diagnostics explicitly
+- model customer/company permissions so automated buyers can be constrained by the same rules as human buyers
 
 This order gives you a working backoffice core quickly.
 

@@ -1,0 +1,69 @@
+@model InventoryLocationListPageViewModel
+@{
+    ViewData["Title"] = "Inventory";
+    ViewData["PageTitle"] = "Inventory";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Inventory</div>
+        <h2>Locations</h2>
+        <p>Manage stock locations, market reach, and balance operations.</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Total locations</span>
+        <a asp-action="New" class="button button-primary">New Location</a>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="filter-bar">
+        <input type="text" name="search" value="@Model.Search" placeholder="Search code or name" />
+        <select name="status">
+            <option value="">All statuses</option>
+            <option value="Active" selected="@(string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))">Active</option>
+            <option value="Archived" selected="@(string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))">Archived</option>
+        </select>
+        <button type="submit" class="button button-secondary">Filter</button>
+        <a asp-action="Index" class="button button-ghost">Reset</a>
+    </form>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Markets</th>
+                    <th>Balances</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Locations.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" class="empty-state">No inventory locations found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var location in Model.Locations)
+                {
+                    <tr>
+                        <td><a asp-action="Details" asp-route-id="@location.Id">@location.Code</a></td>
+                        <td>@location.Name</td>
+                        <td>@location.Type</td>
+                        <td><span class="status-pill">@location.Status</span></td>
+                        <td>@location.MarketCount</td>
+                        <td>@location.BalanceCount</td>
+                        <td>@location.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

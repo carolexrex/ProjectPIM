@@ -1,0 +1,224 @@
+@model ProductListPageViewModel
+@{
+    ViewData["Title"] = "Products";
+    ViewData["PageTitle"] = "Products";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Product number or translation name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Lifecycle</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field filter-field">
+                <span>Catalog Status</span>
+                <select name="productStatusCode">
+                    <option value="">All</option>
+                    @foreach (var status in Model.ProductStatuses)
+                    {
+                        @if (string.Equals(Model.ProductStatusCode, status.Code, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@status.Code" selected>@status.Name (@status.Code)</option>
+                        }
+                        else
+                        {
+                            <option value="@status.Code">@status.Name (@status.Code)</option>
+                        }
+                    }
+                </select>
+            </label>
+
+            <label class="field filter-field">
+                <span>Variants</span>
+                <select name="hasVariants">
+                    @if (Model.HasVariants is null)
+                    {
+                        <option value="" selected>All</option>
+                    }
+                    else
+                    {
+                        <option value="">All</option>
+                    }
+                    @if (Model.HasVariants == true)
+                    {
+                        <option value="true" selected>Has variants</option>
+                    }
+                    else
+                    {
+                        <option value="true">Has variants</option>
+                    }
+                    @if (Model.HasVariants == false)
+                    {
+                        <option value="false" selected>Standalone</option>
+                    }
+                    else
+                    {
+                        <option value="false">Standalone</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field filter-field">
+                <span>Sort</span>
+                <select name="sort">
+                    @if (string.Equals(Model.Sort, "productnumber", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="productnumber" selected>Product Number</option>
+                    }
+                    else
+                    {
+                        <option value="productnumber">Product Number</option>
+                    }
+                    @if (string.Equals(Model.Sort, "-productnumber", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="-productnumber" selected>Product Number Desc</option>
+                    }
+                    else
+                    {
+                        <option value="-productnumber">Product Number Desc</option>
+                    }
+                    @if (string.Equals(Model.Sort, "-updatedatutc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="-updatedatutc" selected>Recently Updated</option>
+                    }
+                    else
+                    {
+                        <option value="-updatedatutc">Recently Updated</option>
+                    }
+                    @if (string.Equals(Model.Sort, "updatedatutc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="updatedatutc" selected>Oldest Updated</option>
+                    }
+                    else
+                    {
+                        <option value="updatedatutc">Oldest Updated</option>
+                    }
+                    @if (string.Equals(Model.Sort, "-createdatutc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="-createdatutc" selected>Newest Created</option>
+                    }
+                    else
+                    {
+                        <option value="-createdatutc">Newest Created</option>
+                    }
+                    @if (string.Equals(Model.Sort, "createdatutc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="createdatutc" selected>Oldest Created</option>
+                    }
+                    else
+                    {
+                        <option value="createdatutc">Oldest Created</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Product</a>
+    </div>
+
+    @if (Model.HasActiveFilters)
+    {
+        <p class="panel-intro">Filtered view of the catalog. Reset filters to return to the full working set.</p>
+    }
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching products</span>
+            <strong>@Model.Total</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Shown on page</span>
+            <strong>@Model.VisibleCount</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">With variants</span>
+            <strong>@Model.WithVariantsCount</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Buyable now</span>
+            <strong>@Model.BuyableCount</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Archived on page</span>
+            <strong>@Model.ArchivedCount</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Slug</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Products.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No products found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var product in Model.Products)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@product.ProductNumber</div>
+                            <div class="table-secondary">@product.DefaultName</div>
+                            @if (!string.IsNullOrWhiteSpace(product.BrandName))
+                            {
+                                <div class="table-secondary">@product.BrandName</div>
+                            }
+                        </td>
+                        <td>@product.Slug</td>
+                        <td>@product.ProductType</td>
+                        <td>
+                            <span class="status-pill">@product.ProductStatus.Name</span>
+                            <div class="table-secondary">@product.Status</div>
+                        </td>
+                        <td>@product.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@product.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -1,0 +1,87 @@
+@model CustomerListPageViewModel
+@{
+    ViewData["Title"] = "Customers";
+    ViewData["PageTitle"] = "Customers";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Customer Service</div>
+        <h2>Customers</h2>
+        <p>Administer customer records, guest state, and delivery addresses.</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Total total</span>
+        <a asp-action="New" class="button button-primary">New Customer</a>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="editor-grid compact-grid">
+        <label class="field">
+            <span>Search</span>
+            <input type="text" name="search" value="@Model.Search" />
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                <option value="">All</option>
+                <option value="Active" selected="@(Model.Status == "Active")">Active</option>
+                <option value="Inactive" selected="@(Model.Status == "Inactive")">Inactive</option>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Guest</span>
+            <select name="isGuest">
+                <option value="">All</option>
+                <option value="true" selected="@(Model.IsGuest == true)">Guest</option>
+                <option value="false" selected="@(Model.IsGuest == false)">Registered</option>
+            </select>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Customers.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No customers found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var customer in Model.Customers)
+                {
+                    <tr>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@customer.Id" class="table-primary">@customer.FirstName @customer.LastName</a>
+                        </td>
+                        <td>@customer.Email</td>
+                        <td>@customer.Status</td>
+                        <td>@(customer.IsGuest ? "Guest" : "Registered")</td>
+                        <td>@customer.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

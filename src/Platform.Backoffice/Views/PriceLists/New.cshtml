@@ -1,0 +1,53 @@
+@model PriceListCreateViewModel
+@{
+    ViewData["Title"] = "Create Price List";
+    ViewData["PageTitle"] = "Create Price List";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Price lists hold currency-specific variant prices and can be assigned to one or more markets.</p>
+    </div>
+
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+            <span asp-validation-for="Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Currency</span>
+            <input asp-for="CurrencyCode" />
+            <span asp-validation-for="CurrencyCode" class="field-error"></span>
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="VatIncluded" />
+            <span>VAT included</span>
+        </label>
+
+        <label class="field">
+            <span>Valid From UTC</span>
+            <input asp-for="ValidFromUtc" type="datetime-local" />
+        </label>
+
+        <label class="field">
+            <span>Valid To UTC</span>
+            <input asp-for="ValidToUtc" type="datetime-local" />
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Price List</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

@@ -1,6 +1,31 @@
 @Platform.StorefrontApi_HostAddress = http://localhost:5064
 
-GET {{Platform.StorefrontApi_HostAddress}}/weatherforecast/
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/context?channel=WEB-SE&culture=en-GB
+Accept: application/json
+
+###
+
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/categories?channel=WEB-SE&market=SE&culture=en-GB
+Accept: application/json
+
+###
+
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/categories/drills?channel=WEB-SE&market=SE&culture=en-GB
+Accept: application/json
+
+###
+
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/products?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK&category=tools&brand=ACME&q=drill&sort=name&page=1&pageSize=24
+Accept: application/json
+
+###
+
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/products/example-drill?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK
+Accept: application/json
+
+###
+
+GET {{Platform.StorefrontApi_HostAddress}}/api/storefront/products/by-number/SKU-EXAMPLE-1?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK
 Accept: application/json
 
 ###

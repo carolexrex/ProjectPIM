@@ -1,0 +1,88 @@
+@model CustomerCreateViewModel
+@{
+    ViewData["Title"] = "New Customer";
+    ViewData["PageTitle"] = "New Customer";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Customer Service</div>
+        <h2>Create Customer</h2>
+        <p>Bootstrap a customer record before carts and orders are added.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="post" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Email</span>
+            <input asp-for="Email" />
+            <span asp-validation-for="Email" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>First Name</span>
+            <input asp-for="FirstName" />
+            <span asp-validation-for="FirstName" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Last Name</span>
+            <input asp-for="LastName" />
+            <span asp-validation-for="LastName" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Phone</span>
+            <input asp-for="Phone" />
+        </label>
+
+        <label class="field">
+            <span>Preferred Culture</span>
+            <input asp-for="PreferredCulture" />
+        </label>
+
+        <label class="field">
+            <span>Default Market</span>
+            <select asp-for="DefaultMarketId">
+                <option value="">No default market</option>
+                @foreach (var market in Model.MarketOptions)
+                {
+                    <option value="@market.Id">@market.Label</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select asp-for="Status">
+                @foreach (var status in Model.StatusOptions)
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>External Id</span>
+            <input asp-for="ExternalId" />
+        </label>
+
+        <label class="field">
+            <span>User Id</span>
+            <input asp-for="UserId" />
+        </label>
+
+        <label class="field checkbox-field">
+            <input asp-for="IsGuest" />
+            <span>Guest customer</span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Customer</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

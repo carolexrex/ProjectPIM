@@ -1,0 +1,136 @@
+@model ProductCreateViewModel
+@{
+    ViewData["Title"] = "Create Product";
+    ViewData["PageTitle"] = "Create Product";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Create a catalog product through the admin API. The backoffice stores no business logic locally.</p>
+    </div>
+
+    <form method="post" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Product Number</span>
+            <input asp-for="ProductNumber" />
+            <span asp-validation-for="ProductNumber" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Slug</span>
+            <input asp-for="Slug" />
+            <span asp-validation-for="Slug" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Type</span>
+            <input asp-for="ProductType" />
+            <span asp-validation-for="ProductType" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Brand</span>
+            <select asp-for="BrandId">
+                <option value="">Unbranded</option>
+                @foreach (var brand in Model.BrandOptions)
+                {
+                    <option value="@brand.Id">@brand.Label</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select asp-for="ProductStatusDefinitionId">
+                @foreach (var status in Model.StatusOptions)
+                {
+                    <option value="@status.Id">@status.Name (@status.Code)</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Tax Category</span>
+            <input asp-for="TaxCategoryCode" />
+            <span asp-validation-for="TaxCategoryCode" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Unit</span>
+            <input asp-for="UnitOfMeasure" />
+            <span asp-validation-for="UnitOfMeasure" class="field-error"></span>
+        </label>
+
+        <label class="field field-full">
+            <span>Categories</span>
+            <select asp-for="SelectedCategoryIds" multiple size="6">
+                @foreach (var category in Model.CategoryOptions)
+                {
+                    <option value="@category.Id">@category.Label</option>
+                }
+            </select>
+        </label>
+
+        @for (var i = 0; i < Model.AttributeEditors.Count; i++)
+        {
+            <input asp-for="AttributeEditors[i].ProductAttributeId" type="hidden" />
+            <input asp-for="AttributeEditors[i].AttributeCode" type="hidden" />
+            <input asp-for="AttributeEditors[i].AttributeName" type="hidden" />
+            <input asp-for="AttributeEditors[i].DataType" type="hidden" />
+            <input asp-for="AttributeEditors[i].IsRequired" type="hidden" />
+
+            @if (Model.AttributeEditors[i].Options.Count > 0)
+            {
+                <label class="field">
+                    <span>@Model.AttributeEditors[i].AttributeName</span>
+                    <select asp-for="AttributeEditors[i].AttributeOptionId">
+                        <option value="">Select option</option>
+                        @foreach (var option in Model.AttributeEditors[i].Options)
+                        {
+                            <option value="@option.Id">@option.Value (@option.Code)</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <label class="field">
+                    <span>@Model.AttributeEditors[i].AttributeName</span>
+                    <input asp-for="AttributeEditors[i].ValueText" />
+                </label>
+            }
+        }
+
+        <label class="field">
+            <span>Weight</span>
+            <input asp-for="Weight" />
+        </label>
+
+        <label class="field">
+            <span>Length</span>
+            <input asp-for="Length" />
+        </label>
+
+        <label class="field">
+            <span>Width</span>
+            <input asp-for="Width" />
+        </label>
+
+        <label class="field">
+            <span>Height</span>
+            <input asp-for="Height" />
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="HasVariants" />
+            <span>Has variants</span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Product</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

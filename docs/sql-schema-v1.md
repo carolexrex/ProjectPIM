@@ -1,14 +1,16 @@
 # SQL Schema v1
 
+Current status:
+
+This file is a historical SQL Server-first schema draft. The active implementation plan is documented in [pim-roadmap-v1.md](./pim-roadmap-v1.md).
+
 ## Purpose
 
-This document defines the first relational schema for the platform based on [domain-spec-v1.md](c:\Users\SpotonAlexV\source\repos\Projekt PIM\docs\domain-spec-v1.md).
+This document defines the first relational schema for the platform based on [domain-spec-v1.md](./domain-spec-v1.md).
 
-The schema is written to be:
+The schema was originally written SQL Server-first.
 
-- SQL Server-friendly first
-- portable to PostgreSQL later
-- explicit about keys, constraints, and indexes
+The current runtime direction in the repository is PostgreSQL. Treat this document as a historical schema draft until it is rewritten for PostgreSQL and EF migrations.
 
 This is a logical-plus-physical schema guide, not a final migration script.
 

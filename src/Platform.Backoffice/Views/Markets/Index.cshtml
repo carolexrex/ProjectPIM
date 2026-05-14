@@ -1,0 +1,95 @@
+@model MarketListPageViewModel
+@{
+    ViewData["Title"] = "Markets";
+    ViewData["PageTitle"] = "Markets";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Market code or name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Market</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching markets</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Market</th>
+                    <th>Defaults</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Markets.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No markets found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var market in Model.Markets)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@market.Code</div>
+                            <div class="table-secondary">@market.Name</div>
+                        </td>
+                        <td>
+                            <div class="table-primary">@market.DefaultCulture</div>
+                            <div class="table-secondary">@market.DefaultCurrency</div>
+                        </td>
+                        <td><span class="status-pill">@market.Status</span></td>
+                        <td>@market.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@market.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Domain.Catalog.Products;
 using Platform.Domain.Catalog.Variants;
 
@@ -8,13 +7,9 @@ namespace Platform.Infrastructure.Persistence.Configurations.Catalog;
 
 public sealed class VariantConfiguration : IEntityTypeConfiguration<Variant>
 {
-    private static readonly ValueConverter<string, byte[]> RowVersionConverter = new(
-        value => string.IsNullOrWhiteSpace(value) ? [] : Convert.FromBase64String(value),
-        value => value.Length == 0 ? string.Empty : Convert.ToBase64String(value));
-
     public void Configure(EntityTypeBuilder<Variant> builder)
     {
-        builder.ToTable("Variant", "dbo");
+        builder.ToTable("Variant", "public");
 
         builder.HasKey(x => x.Id);
 
@@ -60,9 +55,9 @@ public sealed class VariantConfiguration : IEntityTypeConfiguration<Variant>
             .IsRequired();
 
         builder.Property(x => x.RowVersion)
-            .HasColumnType("rowversion")
-            .HasConversion(RowVersionConverter)
-            .IsRowVersion();
+            .HasMaxLength(64)
+            .IsConcurrencyToken()
+            .IsRequired();
 
         builder.Ignore(x => x.PrimaryImageUrl);
 
@@ -90,7 +85,15 @@ public sealed class VariantConfiguration : IEntityTypeConfiguration<Variant>
             .HasForeignKey("VariantId")
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.Media)
+            .WithOne()
+            .HasForeignKey("VariantId")
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Navigation(x => x.AttributeValues)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(x => x.Media)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasQueryFilter(x => !EF.Property<bool>(x, "IsDeleted"));

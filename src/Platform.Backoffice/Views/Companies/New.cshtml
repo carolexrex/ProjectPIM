@@ -1,0 +1,90 @@
+@model CompanyCreateViewModel
+@{
+    ViewData["Title"] = "New Company";
+    ViewData["PageTitle"] = "New Company";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Customer Service</div>
+        <h2>Create Company</h2>
+        <p>Bootstrap a company before memberships, carts, and orders are attached.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="post" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+        </label>
+
+        <label class="field">
+            <span>Legal Name</span>
+            <input asp-for="LegalName" />
+        </label>
+
+        <label class="field">
+            <span>Organization Number</span>
+            <input asp-for="OrganizationNumber" />
+        </label>
+
+        <label class="field">
+            <span>VAT Number</span>
+            <input asp-for="VatNumber" />
+        </label>
+
+        <label class="field">
+            <span>Email</span>
+            <input asp-for="Email" />
+        </label>
+
+        <label class="field">
+            <span>Phone</span>
+            <input asp-for="Phone" />
+        </label>
+
+        <label class="field">
+            <span>Default Market</span>
+            <select asp-for="DefaultMarketId">
+                <option value="">No default market</option>
+                @foreach (var market in Model.MarketOptions)
+                {
+                    <option value="@market.Id">@market.Label</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Default Currency</span>
+            <input asp-for="DefaultCurrency" />
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select asp-for="Status">
+                @foreach (var status in Model.StatusOptions)
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>External Id</span>
+            <input asp-for="ExternalId" />
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Company</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

@@ -1,0 +1,158 @@
+@model BrandDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Brand.Code;
+    ViewData["PageTitle"] = Model.Brand.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Brand</div>
+        <h2>@Model.Brand.Code</h2>
+        <p>@(string.IsNullOrWhiteSpace(Model.Brand.WebsiteUrl) ? "No website configured" : Model.Brand.WebsiteUrl)</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Brand.Status</span>
+        <span>Updated @Model.Brand.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Brand</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Brand.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Brand.Id" type="hidden" />
+            <input asp-for="Brand.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Brand.Code" />
+                <span asp-validation-for="Brand.Code" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Website Url</span>
+                <input asp-for="Brand.WebsiteUrl" />
+                <span asp-validation-for="Brand.WebsiteUrl" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Sort Order</span>
+                <input asp-for="Brand.SortOrder" />
+                <span asp-validation-for="Brand.SortOrder" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Logo Asset</span>
+                <select asp-for="Brand.LogoMediaAssetId">
+                    <option value="">None</option>
+                    @foreach (var asset in Model.Brand.LogoOptions)
+                    {
+                        @if (Model.Brand.LogoMediaAssetId == asset.Id)
+                        {
+                            <option value="@asset.Id" selected>@asset.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@asset.Id">@asset.Label</option>
+                        }
+                    }
+                </select>
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Brand.LogoPublicUrl))
+            {
+                <div class="field field-full">
+                    <span>Current Logo</span>
+                    <img src="@Model.Brand.LogoPublicUrl" alt="@Model.Brand.LogoFileName" style="width:96px;height:96px;object-fit:cover;border-radius:16px;" />
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Brand</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Brand.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Brand.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Brand</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Translations</h3>
+            <div class="topbar-meta">Manage localized brand labels</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Culture</th>
+                        <th>Name</th>
+                        <th>Slug</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Translations.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="empty-state">No translations yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var translation in Model.Translations)
+                    {
+                        <tr>
+                            <td>@translation.CultureCode</td>
+                            <td>@translation.Name</td>
+                            <td>@translation.Slug</td>
+                            <td class="action-cell">
+                                <a asp-action="Details" asp-route-id="@Model.Brand.Id" asp-route-cultureCode="@translation.CultureCode" class="button button-ghost">Edit</a>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="UpsertTranslation" asp-route-id="@Model.Brand.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="TranslationForm.BrandId" type="hidden" />
+
+            <label class="field">
+                <span>Culture</span>
+                <input asp-for="TranslationForm.CultureCode" />
+                <span asp-validation-for="TranslationForm.CultureCode" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="TranslationForm.Name" />
+                <span asp-validation-for="TranslationForm.Name" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Slug</span>
+                <input asp-for="TranslationForm.Slug" />
+                <span asp-validation-for="TranslationForm.Slug" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Description</span>
+                <textarea asp-for="TranslationForm.Description" rows="4"></textarea>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Save Translation</button>
+            </div>
+        </form>
+    </section>
+</div>

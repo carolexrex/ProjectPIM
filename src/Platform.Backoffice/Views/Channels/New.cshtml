@@ -1,0 +1,38 @@
+@model ChannelCreateViewModel
+@{
+    ViewData["Title"] = "Create Channel";
+    ViewData["PageTitle"] = "Create Channel";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Channels represent sales endpoints such as web stores or apps and attach one or more active markets.</p>
+    </div>
+
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+            <span asp-validation-for="Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Host Name</span>
+            <input asp-for="HostName" />
+            <span asp-validation-for="HostName" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Channel</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

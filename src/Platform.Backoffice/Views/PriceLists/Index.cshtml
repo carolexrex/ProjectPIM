@@ -1,0 +1,105 @@
+@model PriceListListPageViewModel
+@{
+    ViewData["Title"] = "Price Lists";
+    ViewData["PageTitle"] = "Price Lists";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Price list code or name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Currency</span>
+                <input type="text" name="currencyCode" value="@Model.CurrencyCode" placeholder="SEK" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Price List</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching price lists</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Price List</th>
+                    <th>Currency</th>
+                    <th>Coverage</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.PriceLists.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No price lists found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var priceList in Model.PriceLists)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@priceList.Code</div>
+                            <div class="table-secondary">@priceList.Name</div>
+                        </td>
+                        <td>
+                            <div class="table-primary">@priceList.CurrencyCode</div>
+                            <div class="table-secondary">@(priceList.VatIncluded ? "VAT included" : "VAT excluded")</div>
+                        </td>
+                        <td>
+                            <div class="table-primary">@priceList.MarketCount markets</div>
+                            <div class="table-secondary">@priceList.EntryCount entries</div>
+                        </td>
+                        <td><span class="status-pill">@priceList.Status</span></td>
+                        <td>@priceList.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@priceList.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

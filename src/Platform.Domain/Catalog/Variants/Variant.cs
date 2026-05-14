@@ -7,13 +7,14 @@ namespace Platform.Domain.Catalog.Variants;
 public sealed class Variant
 {
     private readonly List<VariantAttributeValue> _attributeValues = [];
+    private readonly List<VariantMedia> _media = [];
 
     private Variant()
     {
         Id = Guid.Empty;
         ProductId = Guid.Empty;
         Sku = string.Empty;
-        ProductStatus = new ProductStatusDefinition(Guid.Empty, string.Empty, string.Empty, false);
+        ProductStatus = new ProductStatusDefinition(Guid.Empty, ProductStatusEntityType.Variant, string.Empty, string.Empty, false);
         Status = string.Empty;
         RowVersion = string.Empty;
         CreatedAtUtc = DateTime.UtcNow;
@@ -74,6 +75,7 @@ public sealed class Variant
     public DateTime UpdatedAtUtc { get; private set; }
     public string RowVersion { get; private set; }
     public IReadOnlyList<VariantAttributeValue> AttributeValues => _attributeValues;
+    public IReadOnlyList<VariantMedia> Media => _media;
 
     public void Update(
         string sku,
@@ -111,6 +113,45 @@ public sealed class Variant
         Touch();
     }
 
+    public void UpsertMedia(Guid mediaAssetId, string type, int sortOrder, bool isPrimary, string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        var existing = _media.FirstOrDefault(x => x.MediaAssetId == mediaAssetId && string.Equals(x.Type, type, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            _media.Add(new VariantMedia(Guid.NewGuid(), mediaAssetId, type, sortOrder, isPrimary));
+        }
+        else
+        {
+            existing.Update(sortOrder, isPrimary);
+        }
+
+        NormalizeMediaPrimary(isPrimary, mediaAssetId, type);
+        SortMedia();
+        Touch();
+    }
+
+    public void RemoveMedia(Guid variantMediaId, string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        var media = _media.FirstOrDefault(x => x.Id == variantMediaId);
+        if (media is null)
+        {
+            return;
+        }
+
+        _media.Remove(media);
+        if (_media.Count > 0 && !_media.Any(x => x.IsPrimary))
+        {
+            _media[0].Update(_media[0].SortOrder, true);
+        }
+
+        SortMedia();
+        Touch();
+    }
+
     private void EnsureRowVersion(string rowVersion)
     {
         if (!string.Equals(RowVersion, rowVersion, StringComparison.Ordinal))
@@ -123,5 +164,37 @@ public sealed class Variant
     {
         UpdatedAtUtc = DateTime.UtcNow;
         RowVersion = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+    }
+
+    private void NormalizeMediaPrimary(bool isPrimary, Guid mediaAssetId, string type)
+    {
+        if (isPrimary)
+        {
+            foreach (var media in _media)
+            {
+                var shouldBePrimary = media.MediaAssetId == mediaAssetId && string.Equals(media.Type, type, StringComparison.OrdinalIgnoreCase);
+                media.Update(media.SortOrder, shouldBePrimary);
+            }
+
+            return;
+        }
+
+        if (_media.All(x => !x.IsPrimary))
+        {
+            _media[0].Update(_media[0].SortOrder, true);
+        }
+    }
+
+    private void SortMedia()
+    {
+        var ordered = _media
+            .OrderByDescending(x => x.IsPrimary)
+            .ThenBy(x => x.SortOrder)
+            .ThenBy(x => x.Type, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.MediaAssetId)
+            .ToList();
+
+        _media.Clear();
+        _media.AddRange(ordered);
     }
 }

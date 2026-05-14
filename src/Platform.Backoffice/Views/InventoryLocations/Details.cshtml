@@ -1,0 +1,365 @@
+@model InventoryLocationDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Location.Code;
+    ViewData["PageTitle"] = Model.Location.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Inventory</div>
+        <h2>@Model.Location.Code</h2>
+        <p>@Model.Location.Name</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Location.Status</span>
+        <span>@Model.Location.Type</span>
+        <span>Updated @Model.Location.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Location</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Location.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Location.Id" type="hidden" />
+            <input asp-for="Location.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Location.Code" />
+                <span asp-validation-for="Location.Code" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="Location.Name" />
+                <span asp-validation-for="Location.Name" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Type</span>
+                <select asp-for="Location.Type">
+                    @foreach (var type in Model.Location.TypeOptions)
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Country</span>
+                <input asp-for="Location.CountryCode" />
+                <span asp-validation-for="Location.CountryCode" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Location</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Location.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Location.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Location</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <h3>Overview</h3>
+        <div class="stat-strip">
+            <div class="stat-card">
+                <span class="stat-label">Markets</span>
+                <strong>@Model.Markets.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Balances</span>
+                <strong>@Model.Balances.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Recent transactions</span>
+                <strong>@Model.RecentTransactions.Count</strong>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Type</th>
+                        <td>@Model.Location.Type</td>
+                    </tr>
+                    <tr>
+                        <th>Country</th>
+                        <td>@(string.IsNullOrWhiteSpace(Model.Location.CountryCode) ? "N/A" : Model.Location.CountryCode)</td>
+                    </tr>
+                    <tr>
+                        <th>Created</th>
+                        <td>@Model.Location.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Markets</h3>
+            <div class="topbar-meta">Where this location can fulfill stock</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Market</th>
+                        <th>Priority</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Markets.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3" class="empty-state">No markets assigned.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var market in Model.Markets)
+                    {
+                        <tr>
+                            <td>
+                                <div class="table-primary">@market.MarketCode</div>
+                                <div class="table-secondary">@market.MarketName</div>
+                            </td>
+                            <td>@market.Priority</td>
+                            <td class="action-cell">
+                                <form method="post" asp-action="RemoveMarketAssignment" asp-route-id="@Model.Location.Id" asp-route-marketId="@market.MarketId">
+                                    <input type="hidden" name="rowVersion" value="@Model.Location.RowVersion" />
+                                    <button type="submit" class="button button-ghost">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="UpsertMarketAssignment" asp-route-id="@Model.Location.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="MarketAssignmentForm.InventoryLocationId" type="hidden" />
+            <input asp-for="MarketAssignmentForm.RowVersion" type="hidden" />
+
+            <label class="field field-full">
+                <span>Market</span>
+                <select asp-for="MarketAssignmentForm.MarketId">
+                    <option value="">Select market</option>
+                    @foreach (var market in Model.MarketAssignmentForm.MarketOptions)
+                    {
+                        <option value="@market.Id">@market.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="MarketAssignmentForm.MarketId" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Priority</span>
+                <input asp-for="MarketAssignmentForm.Priority" />
+                <span asp-validation-for="MarketAssignmentForm.Priority" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Assign Market</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Adjust Inventory</h3>
+            <div class="topbar-meta">Create a manual stock transaction</div>
+        </div>
+
+        <form method="post" asp-action="AdjustInventory" asp-route-id="@Model.Location.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="AdjustmentForm.InventoryLocationId" type="hidden" />
+
+            <label class="field field-full">
+                <span>Variant</span>
+                <select asp-for="AdjustmentForm.VariantId">
+                    <option value="">Select variant</option>
+                    @foreach (var variant in Model.AdjustmentForm.VariantOptions)
+                    {
+                        <option value="@variant.Id">@variant.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="AdjustmentForm.VariantId" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Type</span>
+                <select asp-for="AdjustmentForm.Type">
+                    @foreach (var type in Model.AdjustmentForm.TypeOptions)
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Quantity Delta</span>
+                <input asp-for="AdjustmentForm.QuantityDelta" />
+                <span asp-validation-for="AdjustmentForm.QuantityDelta" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Reference Type</span>
+                <input asp-for="AdjustmentForm.ReferenceType" />
+            </label>
+
+            <label class="field">
+                <span>Reference Id</span>
+                <input asp-for="AdjustmentForm.ReferenceId" />
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Apply Adjustment</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Balances</h3>
+        <div class="topbar-meta">Current stock snapshot by variant</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Variant</th>
+                    <th>On Hand</th>
+                    <th>Reserved</th>
+                    <th>Incoming</th>
+                    <th>Available</th>
+                    <th>Backorderable</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Balances.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" class="empty-state">No balances yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var balance in Model.Balances)
+                {
+                    <tr>
+                        <td><a asp-controller="Variants" asp-action="Details" asp-route-id="@balance.VariantId">@balance.VariantSku</a></td>
+                        <td>@balance.OnHandQuantity</td>
+                        <td>@balance.ReservedQuantity</td>
+                        <td>@balance.IncomingQuantity</td>
+                        <td>@balance.AvailableQuantity</td>
+                        <td>@(balance.Backorderable ? "Yes" : "No")</td>
+                        <td>@balance.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" asp-action="UpsertBalance" asp-route-id="@Model.Location.Id" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="BalanceForm.InventoryLocationId" type="hidden" />
+
+        <label class="field field-full">
+            <span>Variant</span>
+            <select asp-for="BalanceForm.VariantId">
+                <option value="">Select variant</option>
+                @foreach (var variant in Model.BalanceForm.VariantOptions)
+                {
+                    <option value="@variant.Id">@variant.Label</option>
+                }
+            </select>
+            <span asp-validation-for="BalanceForm.VariantId" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>On Hand</span>
+            <input asp-for="BalanceForm.OnHandQuantity" />
+        </label>
+
+        <label class="field">
+            <span>Reserved</span>
+            <input asp-for="BalanceForm.ReservedQuantity" />
+        </label>
+
+        <label class="field">
+            <span>Incoming</span>
+            <input asp-for="BalanceForm.IncomingQuantity" />
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="BalanceForm.Backorderable" />
+            <span>Backorderable</span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Save Balance</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Recent Transactions</h3>
+        <div class="topbar-meta">Latest stock changes at this location</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Variant</th>
+                    <th>Type</th>
+                    <th>Delta</th>
+                    <th>Reference</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.RecentTransactions.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No transactions recorded yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var transaction in Model.RecentTransactions)
+                {
+                    <tr>
+                        <td>@transaction.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td><a asp-controller="Variants" asp-action="Details" asp-route-id="@transaction.VariantId">@transaction.VariantSku</a></td>
+                        <td>@transaction.Type</td>
+                        <td>@transaction.QuantityDelta</td>
+                        <td>@transaction.ReferenceType<br /><span class="table-secondary">@transaction.ReferenceId</span></td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

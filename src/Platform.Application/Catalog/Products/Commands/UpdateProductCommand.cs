@@ -8,6 +8,8 @@ public sealed record UpdateProductCommand(
     Guid ProductStatusDefinitionId,
     string TaxCategoryCode,
     string UnitOfMeasure,
+    IReadOnlyList<Guid> CategoryIds,
+    IReadOnlyList<CreateProductAttributeValueCommand> AttributeValues,
     decimal? Weight,
     decimal? Length,
     decimal? Width,

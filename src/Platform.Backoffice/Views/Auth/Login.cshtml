@@ -1,0 +1,30 @@
+@model Platform.Backoffice.Security.LoginViewModel
+@{
+    ViewData["Title"] = "Login";
+    ViewData["PageTitle"] = "Admin Login";
+}
+
+<section class="panel auth-panel">
+    <div class="panel-intro">Sign in to the backoffice using the admin API identity flow.</div>
+
+    <form method="post" asp-action="Login" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="ReturnUrl" type="hidden" />
+
+        <label class="field">
+            <span>Username</span>
+            <input asp-for="Username" />
+            <span asp-validation-for="Username" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Password</span>
+            <input asp-for="Password" type="password" />
+            <span asp-validation-for="Password" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Sign In</button>
+        </div>
+    </form>
+</section>

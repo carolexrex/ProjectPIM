@@ -1,19 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Platform.Domain.Catalog.Brands;
 using Platform.Domain.Catalog.Products;
 
 namespace Platform.Infrastructure.Persistence.Configurations.Catalog;
 
 public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
-    private static readonly ValueConverter<string, byte[]> RowVersionConverter = new(
-        value => string.IsNullOrWhiteSpace(value) ? [] : Convert.FromBase64String(value),
-        value => value.Length == 0 ? string.Empty : Convert.ToBase64String(value));
-
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("Product", "dbo");
+        builder.ToTable("Product", "public");
 
         builder.HasKey(x => x.Id);
 
@@ -65,9 +61,9 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             .IsRequired();
 
         builder.Property(x => x.RowVersion)
-            .HasColumnType("rowversion")
-            .HasConversion(RowVersionConverter)
-            .IsRowVersion();
+            .HasMaxLength(64)
+            .IsConcurrencyToken()
+            .IsRequired();
 
         builder.Ignore(x => x.PrimaryImageUrl);
 
@@ -88,12 +84,49 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasForeignKey("ProductStatusDefinitionId")
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<Brand>()
+            .WithMany()
+            .HasForeignKey(x => x.BrandId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasMany(x => x.Translations)
             .WithOne()
             .HasForeignKey("ProductId")
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.CategoryAssignments)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.AttributeValues)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Media)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Relations)
+            .WithOne()
+            .HasForeignKey("ProductId")
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Navigation(x => x.Translations)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(x => x.CategoryAssignments)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(x => x.AttributeValues)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(x => x.Media)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Navigation(x => x.Relations)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasQueryFilter(x => !EF.Property<bool>(x, "IsDeleted"));

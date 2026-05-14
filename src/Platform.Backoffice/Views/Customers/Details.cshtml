@@ -1,0 +1,239 @@
+@model CustomerDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Customer.Email;
+    ViewData["PageTitle"] = Model.Customer.Email;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Customer Service</div>
+        <h2>@Model.Customer.FirstName @Model.Customer.LastName</h2>
+        <p>@Model.Customer.Email</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Customer.Status</span>
+        <span>@(Model.Customer.IsGuest ? "Guest" : "Registered")</span>
+        <span>Updated @Model.Customer.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Customer</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Customer.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Customer.Id" type="hidden" />
+            <input asp-for="Customer.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Email</span>
+                <input asp-for="Customer.Email" />
+                <span asp-validation-for="Customer.Email" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>First Name</span>
+                <input asp-for="Customer.FirstName" />
+            </label>
+
+            <label class="field">
+                <span>Last Name</span>
+                <input asp-for="Customer.LastName" />
+            </label>
+
+            <label class="field">
+                <span>Phone</span>
+                <input asp-for="Customer.Phone" />
+            </label>
+
+            <label class="field">
+                <span>Preferred Culture</span>
+                <input asp-for="Customer.PreferredCulture" />
+            </label>
+
+            <label class="field">
+                <span>Default Market</span>
+                <select asp-for="Customer.DefaultMarketId">
+                    <option value="">No default market</option>
+                    @foreach (var market in Model.Customer.MarketOptions)
+                    {
+                        <option value="@market.Id">@market.Label</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select asp-for="Customer.Status">
+                    @foreach (var status in Model.Customer.StatusOptions)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>External Id</span>
+                <input asp-for="Customer.ExternalId" />
+            </label>
+
+            <label class="field">
+                <span>User Id</span>
+                <input asp-for="Customer.UserId" />
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="Customer.IsGuest" />
+                <span>Guest customer</span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Customer</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h3>Overview</h3>
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Created</th>
+                        <td>@Model.Customer.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                    <tr>
+                        <th>Updated</th>
+                        <td>@Model.Customer.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                    <tr>
+                        <th>Address Count</th>
+                        <td>@Model.Addresses.Count</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Addresses</h3>
+            <div class="topbar-meta">Shipping and billing records</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Contact</th>
+                        <th>Address</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Addresses.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="empty-state">No addresses added yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var address in Model.Addresses)
+                    {
+                        <tr>
+                            <td>@address.Type</td>
+                            <td>
+                                <div class="table-primary">@address.FirstName @address.LastName</div>
+                                <div class="table-secondary">@address.Email</div>
+                            </td>
+                            <td>@address.Line1, @address.PostalCode @address.City</td>
+                            <td>@(address.IsDefault ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Add Address</h3>
+            <div class="topbar-meta">Create a new shipping or billing address</div>
+        </div>
+
+        <form method="post" asp-action="AddAddress" asp-route-id="@Model.Customer.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="AddressForm.CustomerId" type="hidden" />
+
+            <label class="field">
+                <span>Type</span>
+                <select asp-for="AddressForm.Type">
+                    @foreach (var type in Model.AddressForm.TypeOptions)
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>First Name</span>
+                <input asp-for="AddressForm.FirstName" />
+            </label>
+
+            <label class="field">
+                <span>Last Name</span>
+                <input asp-for="AddressForm.LastName" />
+            </label>
+
+            <label class="field">
+                <span>Company</span>
+                <input asp-for="AddressForm.CompanyName" />
+            </label>
+
+            <label class="field field-full">
+                <span>Line 1</span>
+                <input asp-for="AddressForm.Line1" />
+            </label>
+
+            <label class="field">
+                <span>Postal Code</span>
+                <input asp-for="AddressForm.PostalCode" />
+            </label>
+
+            <label class="field">
+                <span>City</span>
+                <input asp-for="AddressForm.City" />
+            </label>
+
+            <label class="field">
+                <span>Country</span>
+                <input asp-for="AddressForm.CountryCode" />
+            </label>
+
+            <label class="field">
+                <span>Email</span>
+                <input asp-for="AddressForm.Email" />
+            </label>
+
+            <label class="field">
+                <span>Phone</span>
+                <input asp-for="AddressForm.Phone" />
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="AddressForm.IsDefault" />
+                <span>Default for this type</span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Add Address</button>
+            </div>
+        </form>
+    </section>
+</div>

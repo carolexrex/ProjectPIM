@@ -1,0 +1,107 @@
+@model CategoryListPageViewModel
+@{
+    ViewData["Title"] = "Categories";
+    ViewData["PageTitle"] = "Categories";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Category code or translation name" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Category</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching categories</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Hierarchy</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Categories.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No categories found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var category in Model.Categories)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@category.Code</div>
+                            <div class="table-secondary">@category.DefaultName</div>
+                        </td>
+                        <td>
+                            <div class="table-primary">@category.PathLabel</div>
+                            <div class="table-secondary">
+                                @if (string.IsNullOrWhiteSpace(category.ParentLabel))
+                                {
+                                    <text>Root category</text>
+                                }
+                                else
+                                {
+                                    <text>Parent: @category.ParentLabel</text>
+                                }
+                            </div>
+                        </td>
+                        <td><span class="status-pill">@category.Status</span></td>
+                        <td>
+                            <div class="table-primary">@category.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</div>
+                            <div class="table-secondary">Depth @category.Depth</div>
+                        </td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@category.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -1,0 +1,79 @@
+@model MediaAssetListPageViewModel
+@{
+    ViewData["Title"] = "Media Assets";
+    ViewData["PageTitle"] = "Media Assets";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="File name or title" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <input type="text" name="status" value="@Model.Status" placeholder="Active or Archived" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Content Type</span>
+                <input type="text" name="contentType" value="@Model.ContentType" placeholder="image/jpeg" />
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Asset</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching assets</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Asset</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Assets.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No media assets found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var asset in Model.Assets)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@asset.FileName</div>
+                            <div class="table-secondary">@asset.Title</div>
+                        </td>
+                        <td>@asset.ContentType</td>
+                        <td>@asset.Status</td>
+                        <td>@asset.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@asset.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

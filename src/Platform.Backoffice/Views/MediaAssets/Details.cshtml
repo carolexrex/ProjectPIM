@@ -1,0 +1,100 @@
+@model MediaAssetDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Asset.FileName;
+    ViewData["PageTitle"] = Model.Asset.FileName;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Media Asset</div>
+        <h2>@Model.Asset.FileName</h2>
+        <p>@Model.Asset.ContentType</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Asset.Status</span>
+        <span>Updated @Model.Asset.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Asset</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Asset.Id" class="editor-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Asset.Id" type="hidden" />
+            <input asp-for="Asset.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Storage Provider</span>
+                <input asp-for="Asset.StorageProvider" readonly />
+            </label>
+
+            <label class="field field-full">
+                <span>Storage Key</span>
+                <input asp-for="Asset.StorageKey" readonly />
+            </label>
+
+            <label class="field">
+                <span>File Name</span>
+                <input asp-for="Asset.FileName" />
+                <span asp-validation-for="Asset.FileName" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Content Type</span>
+                <input asp-for="Asset.ContentType" />
+                <span asp-validation-for="Asset.ContentType" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>File Size</span>
+                <input asp-for="Asset.FileSize" />
+            </label>
+
+            <label class="field">
+                <span>Width</span>
+                <input asp-for="Asset.Width" />
+            </label>
+
+            <label class="field">
+                <span>Height</span>
+                <input asp-for="Asset.Height" />
+            </label>
+
+            <label class="field field-full">
+                <span>Public URL</span>
+                <input asp-for="Asset.PublicUrl" />
+                <span asp-validation-for="Asset.PublicUrl" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Title</span>
+                <input asp-for="Asset.Title" />
+            </label>
+
+            <label class="field">
+                <span>Alt Text</span>
+                <input asp-for="Asset.AltText" />
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Asset</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Asset.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Asset.Id" class="inline-danger-form">
+                <input type="hidden" name="rowVersion" value="@Model.Asset.RowVersion" />
+                <button type="submit" class="button button-danger">Archive Asset</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <h3>Preview</h3>
+        <div class="panel-intro">@Model.Details.PublicUrl</div>
+        <img src="@Model.Details.PublicUrl" alt="@Model.Details.AltText" style="max-width:100%;border-radius:16px;" />
+    </section>
+</div>

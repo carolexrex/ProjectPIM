@@ -1,0 +1,144 @@
+@model CategoryDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Category.Code;
+    ViewData["PageTitle"] = Model.Category.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Category</div>
+        <h2>@Model.Category.Code</h2>
+        <p>Sort order @Model.Category.SortOrder</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Category.Status</span>
+        <span>Updated @Model.Category.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Category</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Category.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Category.Id" type="hidden" />
+            <input asp-for="Category.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Category.Code" />
+                <span asp-validation-for="Category.Code" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Parent Category</span>
+                <select asp-for="Category.ParentCategoryId">
+                    <option value="">Root</option>
+                    @foreach (var option in Model.Category.ParentOptions)
+                    {
+                        @if (Model.Category.ParentCategoryId == option.Id)
+                        {
+                            <option value="@option.Id" selected>@option.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@option.Id">@option.Label</option>
+                        }
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Sort Order</span>
+                <input asp-for="Category.SortOrder" />
+                <span asp-validation-for="Category.SortOrder" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Category</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Category.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Category.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Category</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Translations</h3>
+            <div class="topbar-meta">Manage localized labels and slugs</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Culture</th>
+                        <th>Name</th>
+                        <th>Slug</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Translations.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="empty-state">No translations yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var translation in Model.Translations)
+                    {
+                        <tr>
+                            <td>@translation.CultureCode</td>
+                            <td>@translation.Name</td>
+                            <td>@translation.Slug</td>
+                            <td class="action-cell">
+                                <a asp-action="Details" asp-route-id="@Model.Category.Id" asp-route-cultureCode="@translation.CultureCode" class="button button-ghost">Edit</a>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="UpsertTranslation" asp-route-id="@Model.Category.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="TranslationForm.CategoryId" type="hidden" />
+
+            <label class="field">
+                <span>Culture</span>
+                <input asp-for="TranslationForm.CultureCode" />
+                <span asp-validation-for="TranslationForm.CultureCode" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="TranslationForm.Name" />
+                <span asp-validation-for="TranslationForm.Name" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Slug</span>
+                <input asp-for="TranslationForm.Slug" />
+                <span asp-validation-for="TranslationForm.Slug" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Description</span>
+                <textarea asp-for="TranslationForm.Description" rows="4"></textarea>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Save Translation</button>
+            </div>
+        </form>
+    </section>
+</div>

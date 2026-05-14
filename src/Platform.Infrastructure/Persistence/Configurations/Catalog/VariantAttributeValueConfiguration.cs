@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Platform.Domain.Catalog.Attributes;
 using Platform.Domain.Catalog.Variants;
 
 namespace Platform.Infrastructure.Persistence.Configurations.Catalog;
@@ -8,7 +9,7 @@ public sealed class VariantAttributeValueConfiguration : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<VariantAttributeValue> builder)
     {
-        builder.ToTable("VariantAttributeValue", "dbo");
+        builder.ToTable("VariantAttributeValue", "public");
 
         builder.HasKey(x => x.Id);
 
@@ -24,5 +25,10 @@ public sealed class VariantAttributeValueConfiguration : IEntityTypeConfiguratio
             .HasMaxLength(256);
 
         builder.Property<Guid>("VariantId");
+
+        builder.HasOne<ProductAttribute>()
+            .WithMany()
+            .HasForeignKey(x => x.ProductAttributeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

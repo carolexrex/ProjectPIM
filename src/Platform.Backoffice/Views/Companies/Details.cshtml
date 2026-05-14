@@ -1,0 +1,381 @@
+@model CompanyDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Company.Code;
+    ViewData["PageTitle"] = Model.Company.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Customer Service</div>
+        <h2>@Model.Company.Code</h2>
+        <p>@Model.Company.Name</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Company.Status</span>
+        <span>@(Model.Company.DefaultCurrency ?? "No currency")</span>
+        <span>Updated @Model.Company.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Company</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Company.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Company.Id" type="hidden" />
+            <input asp-for="Company.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Company.Code" />
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="Company.Name" />
+            </label>
+
+            <label class="field">
+                <span>Legal Name</span>
+                <input asp-for="Company.LegalName" />
+            </label>
+
+            <label class="field">
+                <span>Organization Number</span>
+                <input asp-for="Company.OrganizationNumber" />
+            </label>
+
+            <label class="field">
+                <span>VAT Number</span>
+                <input asp-for="Company.VatNumber" />
+            </label>
+
+            <label class="field">
+                <span>Email</span>
+                <input asp-for="Company.Email" />
+            </label>
+
+            <label class="field">
+                <span>Phone</span>
+                <input asp-for="Company.Phone" />
+            </label>
+
+            <label class="field">
+                <span>Default Market</span>
+                <select asp-for="Company.DefaultMarketId">
+                    <option value="">No default market</option>
+                    @foreach (var market in Model.Company.MarketOptions)
+                    {
+                        <option value="@market.Id">@market.Label</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Default Currency</span>
+                <input asp-for="Company.DefaultCurrency" />
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select asp-for="Company.Status">
+                    @foreach (var status in Model.Company.StatusOptions)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>External Id</span>
+                <input asp-for="Company.ExternalId" />
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Company</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h3>Overview</h3>
+        <div class="stat-strip">
+            <div class="stat-card">
+                <span class="stat-label">Addresses</span>
+                <strong>@Model.Addresses.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Memberships</span>
+                <strong>@Model.Memberships.Count</strong>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Created</th>
+                        <td>@Model.Company.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                    <tr>
+                        <th>Updated</th>
+                        <td>@Model.Company.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Addresses</h3>
+            <div class="topbar-meta">Billing and delivery records</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Address</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Addresses.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3" class="empty-state">No addresses added yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var address in Model.Addresses)
+                    {
+                        <tr>
+                            <td>@address.Type</td>
+                            <td>@address.Line1, @address.PostalCode @address.City</td>
+                            <td>@(address.IsDefault ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="AddAddress" asp-route-id="@Model.Company.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="AddressForm.CompanyId" type="hidden" />
+
+            <label class="field">
+                <span>Type</span>
+                <select asp-for="AddressForm.Type">
+                    @foreach (var type in Model.AddressForm.TypeOptions)
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field field-full">
+                <span>Line 1</span>
+                <input asp-for="AddressForm.Line1" />
+            </label>
+
+            <label class="field">
+                <span>Postal Code</span>
+                <input asp-for="AddressForm.PostalCode" />
+            </label>
+
+            <label class="field">
+                <span>City</span>
+                <input asp-for="AddressForm.City" />
+            </label>
+
+            <label class="field">
+                <span>Country</span>
+                <input asp-for="AddressForm.CountryCode" />
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="AddressForm.IsDefault" />
+                <span>Default for this type</span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Add Address</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>New Membership</h3>
+            <div class="topbar-meta">Attach a customer to this company</div>
+        </div>
+
+        <form method="post" asp-action="AddMembership" asp-route-id="@Model.Company.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="MembershipForm.CompanyId" type="hidden" />
+
+            <label class="field field-full">
+                <span>Customer</span>
+                <select asp-for="MembershipForm.CustomerId">
+                    <option value="">Select customer</option>
+                    @foreach (var customer in Model.MembershipForm.CustomerOptions)
+                    {
+                        <option value="@customer.Id">@customer.Label</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Role</span>
+                <select asp-for="MembershipForm.Role">
+                    @foreach (var role in Model.MembershipForm.RoleOptions)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select asp-for="MembershipForm.Status">
+                    @foreach (var status in Model.MembershipForm.StatusOptions)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Valid From</span>
+                <input asp-for="MembershipForm.ValidFromUtc" type="datetime-local" />
+            </label>
+
+            <label class="field">
+                <span>Valid To</span>
+                <input asp-for="MembershipForm.ValidToUtc" type="datetime-local" />
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="MembershipForm.IsDefaultCompany" />
+                <span>Default company</span>
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="MembershipForm.CanPlaceOrders" />
+                <span>Can place orders</span>
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="MembershipForm.CanApproveOrders" />
+                <span>Can approve orders</span>
+            </label>
+
+            <label class="field checkbox-field">
+                <input asp-for="MembershipForm.CanManageUsers" />
+                <span>Can manage users</span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Add Membership</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Memberships</h3>
+        <div class="topbar-meta">Permission flags for company contacts</div>
+    </div>
+
+    @if (Model.Memberships.Count == 0)
+    {
+        <div class="empty-state">No memberships added yet.</div>
+    }
+    else
+    {
+        <div class="editor-grid">
+            @foreach (var membership in Model.Memberships)
+            {
+                <form method="post" asp-action="UpdateMembership" asp-route-id="@Model.Company.Id" asp-route-membershipId="@membership.Id" class="panel">
+                    <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+                    <input type="hidden" name="Membership.Id" value="@membership.Id" />
+                    <input type="hidden" name="Membership.CustomerId" value="@membership.CustomerId" />
+                    <input type="hidden" name="Membership.CustomerEmail" value="@membership.CustomerEmail" />
+                    <input type="hidden" name="Membership.CustomerDisplayName" value="@membership.CustomerDisplayName" />
+                    <input type="hidden" name="Membership.RowVersion" value="@membership.RowVersion" />
+
+                    <div class="panel-toolbar">
+                        <h3>@membership.CustomerDisplayName</h3>
+                        <div class="topbar-meta">@membership.CustomerEmail</div>
+                    </div>
+
+                    <label class="field">
+                        <span>Role</span>
+                        <select name="Membership.Role">
+                            @foreach (var role in membership.RoleOptions)
+                            {
+                                <option value="@role" selected="@(membership.Role == role)">@role</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="field">
+                        <span>Status</span>
+                        <select name="Membership.Status">
+                            @foreach (var status in membership.StatusOptions)
+                            {
+                                <option value="@status" selected="@(membership.Status == status)">@status</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="field">
+                        <span>Valid From</span>
+                        <input name="Membership.ValidFromUtc" type="datetime-local" value="@(membership.ValidFromUtc?.ToString("yyyy-MM-ddTHH:mm"))" />
+                    </label>
+
+                    <label class="field">
+                        <span>Valid To</span>
+                        <input name="Membership.ValidToUtc" type="datetime-local" value="@(membership.ValidToUtc?.ToString("yyyy-MM-ddTHH:mm"))" />
+                    </label>
+
+                    <label class="field checkbox-field">
+                        <input name="Membership.IsDefaultCompany" type="checkbox" value="true" checked="@membership.IsDefaultCompany" />
+                        <input type="hidden" name="Membership.IsDefaultCompany" value="false" />
+                        <span>Default company</span>
+                    </label>
+
+                    <label class="field checkbox-field">
+                        <input name="Membership.CanPlaceOrders" type="checkbox" value="true" checked="@membership.CanPlaceOrders" />
+                        <input type="hidden" name="Membership.CanPlaceOrders" value="false" />
+                        <span>Can place orders</span>
+                    </label>
+
+                    <label class="field checkbox-field">
+                        <input name="Membership.CanApproveOrders" type="checkbox" value="true" checked="@membership.CanApproveOrders" />
+                        <input type="hidden" name="Membership.CanApproveOrders" value="false" />
+                        <span>Can approve orders</span>
+                    </label>
+
+                    <label class="field checkbox-field">
+                        <input name="Membership.CanManageUsers" type="checkbox" value="true" checked="@membership.CanManageUsers" />
+                        <input type="hidden" name="Membership.CanManageUsers" value="false" />
+                        <span>Can manage users</span>
+                    </label>
+
+                    <div class="form-actions">
+                        <button type="submit" class="button button-primary">Save Membership</button>
+                    </div>
+                </form>
+            }
+        </div>
+    }
+</section>

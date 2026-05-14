@@ -1,0 +1,47 @@
+@model CategoryCreateViewModel
+@{
+    ViewData["Title"] = "New Category";
+    ViewData["PageTitle"] = "New Category";
+}
+
+<section class="panel">
+    <h3>Create Category</h3>
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Parent Category</span>
+            <select asp-for="ParentCategoryId">
+                <option value="">Root</option>
+                @foreach (var option in Model.ParentOptions)
+                {
+                    @if (Model.ParentCategoryId == option.Id)
+                    {
+                        <option value="@option.Id" selected>@option.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@option.Id">@option.Label</option>
+                    }
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Sort Order</span>
+            <input asp-for="SortOrder" />
+            <span asp-validation-for="SortOrder" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Category</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

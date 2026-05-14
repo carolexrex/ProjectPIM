@@ -5,6 +5,17 @@ namespace Platform.Contracts.Catalog.Products;
 
 public sealed class CreateProductRequest
 {
+    public sealed class ProductAttributeValueRequest
+    {
+        [NotEmptyGuid]
+        public Guid ProductAttributeId { get; init; }
+
+        public Guid? AttributeOptionId { get; init; }
+
+        [StringLength(256)]
+        public string? ValueText { get; init; }
+    }
+
     [Required]
     [StringLength(64)]
     public string ProductType { get; init; } = string.Empty;
@@ -35,6 +46,9 @@ public sealed class CreateProductRequest
     public decimal? Length { get; init; }
     public decimal? Width { get; init; }
     public decimal? Height { get; init; }
+    public IReadOnlyList<Guid> CategoryIds { get; init; } = [];
+    [Required]
+    public IReadOnlyList<ProductAttributeValueRequest> AttributeValues { get; init; } = [];
 }
 
 public sealed class UpdateProductRequest
@@ -64,6 +78,9 @@ public sealed class UpdateProductRequest
     public decimal? Length { get; init; }
     public decimal? Width { get; init; }
     public decimal? Height { get; init; }
+    public IReadOnlyList<Guid> CategoryIds { get; init; } = [];
+    [Required]
+    public IReadOnlyList<CreateProductRequest.ProductAttributeValueRequest> AttributeValues { get; init; } = [];
 
     [Required]
     public string RowVersion { get; init; } = string.Empty;
@@ -76,6 +93,31 @@ public sealed class AssignProductStatusRequest
 
     [StringLength(1024)]
     public string? Comment { get; init; }
+}
+
+public sealed class UpsertProductRelationRequest
+{
+    [NotEmptyGuid]
+    public Guid TargetProductId { get; init; }
+
+    [Required]
+    [StringLength(32)]
+    public string RelationType { get; init; } = string.Empty;
+
+    [Range(0.0001, 1000000)]
+    public decimal? Quantity { get; init; }
+
+    [Range(0, int.MaxValue)]
+    public int SortOrder { get; init; }
+
+    [Required]
+    public string RowVersion { get; init; } = string.Empty;
+}
+
+public sealed class RemoveProductRelationRequest
+{
+    [Required]
+    public string RowVersion { get; init; } = string.Empty;
 }
 
 public sealed class UpsertProductTranslationRequest

@@ -1,0 +1,36 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Platform.Domain.Catalog.Pricing;
+
+namespace Platform.Infrastructure.Persistence.Configurations.Catalog;
+
+public sealed class PriceListConfiguration : IEntityTypeConfiguration<PriceList>
+{
+    public void Configure(EntityTypeBuilder<PriceList> builder)
+    {
+        builder.ToTable("PriceList", "public");
+
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).ValueGeneratedNever();
+        builder.Property(x => x.Code).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.CurrencyCode).HasMaxLength(3).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.RowVersion).HasMaxLength(64).IsConcurrencyToken().IsRequired();
+        builder.Property(x => x.CreatedAtUtc).IsRequired();
+        builder.Property(x => x.UpdatedAtUtc).IsRequired();
+        builder.Property<Guid?>("TenantId");
+        builder.Property<string?>("ExternalId").HasMaxLength(128);
+        builder.Property<bool>("IsDeleted").HasDefaultValue(false);
+
+        builder.HasIndex("TenantId", nameof(PriceList.Code)).IsUnique();
+
+        builder.HasMany(x => x.Entries).WithOne().HasForeignKey("PriceListId").OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.MarketAssignments).WithOne().HasForeignKey("PriceListId").OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(x => x.Entries).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(x => x.MarketAssignments).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasQueryFilter(x => !EF.Property<bool>(x, "IsDeleted"));
+    }
+}

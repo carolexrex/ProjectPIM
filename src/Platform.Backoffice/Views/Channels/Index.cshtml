@@ -1,0 +1,92 @@
+@model ChannelListPageViewModel
+@{
+    ViewData["Title"] = "Channels";
+    ViewData["PageTitle"] = "Channels";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <form method="get" class="filter-form">
+            <label class="field filter-field filter-field-search">
+                <span>Search</span>
+                <input type="search" name="search" value="@Model.Search" placeholder="Channel code, name, or host" />
+            </label>
+
+            <label class="field filter-field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="">All</option>
+                    @if (string.Equals(Model.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Active" selected>Active</option>
+                    }
+                    else
+                    {
+                        <option value="Active">Active</option>
+                    }
+                    @if (string.Equals(Model.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="Archived" selected>Archived</option>
+                    }
+                    else
+                    {
+                        <option value="Archived">Archived</option>
+                    }
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Apply Filters</button>
+                <a asp-action="Index" class="button button-ghost">Reset</a>
+            </div>
+        </form>
+        <a asp-action="New" class="button button-secondary">New Channel</a>
+    </div>
+
+    <div class="stat-strip">
+        <div class="stat-card">
+            <span class="stat-label">Matching channels</span>
+            <strong>@Model.Total</strong>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th>Host</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Channels.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No channels found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var channel in Model.Channels)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@channel.Code</div>
+                            <div class="table-secondary">@channel.Name</div>
+                        </td>
+                        <td>@(string.IsNullOrWhiteSpace(channel.HostName) ? "No host configured" : channel.HostName)</td>
+                        <td><span class="status-pill">@channel.Status</span></td>
+                        <td>@channel.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@channel.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

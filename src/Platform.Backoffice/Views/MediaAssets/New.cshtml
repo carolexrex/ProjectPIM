@@ -1,0 +1,75 @@
+@model MediaAssetCreateViewModel
+@{
+    ViewData["Title"] = "New Media Asset";
+    ViewData["PageTitle"] = "New Media Asset";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Create a reusable media asset record. This slice is URL-based and does not upload binaries yet.</p>
+    </div>
+
+    <form method="post" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Storage Provider</span>
+            <input asp-for="StorageProvider" />
+            <span asp-validation-for="StorageProvider" class="field-error"></span>
+        </label>
+
+        <label class="field field-full">
+            <span>Storage Key</span>
+            <input asp-for="StorageKey" />
+            <span asp-validation-for="StorageKey" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>File Name</span>
+            <input asp-for="FileName" />
+            <span asp-validation-for="FileName" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Content Type</span>
+            <input asp-for="ContentType" />
+            <span asp-validation-for="ContentType" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>File Size</span>
+            <input asp-for="FileSize" />
+        </label>
+
+        <label class="field">
+            <span>Width</span>
+            <input asp-for="Width" />
+        </label>
+
+        <label class="field">
+            <span>Height</span>
+            <input asp-for="Height" />
+        </label>
+
+        <label class="field field-full">
+            <span>Public URL</span>
+            <input asp-for="PublicUrl" />
+            <span asp-validation-for="PublicUrl" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Title</span>
+            <input asp-for="Title" />
+        </label>
+
+        <label class="field">
+            <span>Alt Text</span>
+            <input asp-for="AltText" />
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Asset</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

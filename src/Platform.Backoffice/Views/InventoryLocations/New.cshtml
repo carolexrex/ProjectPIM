@@ -1,0 +1,50 @@
+@model InventoryLocationCreateViewModel
+@{
+    ViewData["Title"] = "New Inventory Location";
+    ViewData["PageTitle"] = "New Inventory Location";
+}
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Create Inventory Location</h3>
+        <div class="topbar-meta">Warehouse, store, supplier, or external stock source</div>
+    </div>
+
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+            <span asp-validation-for="Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Type</span>
+            <select asp-for="Type">
+                @foreach (var type in Model.TypeOptions)
+                {
+                    <option value="@type">@type</option>
+                }
+            </select>
+            <span asp-validation-for="Type" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Country</span>
+            <input asp-for="CountryCode" />
+            <span asp-validation-for="CountryCode" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Location</button>
+            <a asp-action="Index" class="button button-ghost">Cancel</a>
+        </div>
+    </form>
+</section>

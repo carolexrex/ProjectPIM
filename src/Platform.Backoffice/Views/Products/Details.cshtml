@@ -1,0 +1,664 @@
+@model ProductDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Product.ProductNumber;
+    ViewData["PageTitle"] = Model.Product.ProductNumber;
+    var categoryLabels = Model.Product.CategoryOptions.ToDictionary(x => x.Id, x => x.Label);
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Product</div>
+        <h2>@Model.Product.ProductNumber</h2>
+        <p>@Model.Product.Slug</p>
+        @if (Model.Product.BrandId is Guid selectedBrandId)
+        {
+            var selectedBrand = Model.Product.BrandOptions.FirstOrDefault(x => x.Id == selectedBrandId);
+            <p>@(selectedBrand?.Label ?? selectedBrandId.ToString())</p>
+        }
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Product.StatusName</span>
+        <span class="hero-status">@Model.Product.Status</span>
+        <span>Updated @Model.Product.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Product</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Product.Id" class="editor-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Product.Id" type="hidden" />
+            <input asp-for="Product.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Product Number</span>
+                <input asp-for="Product.ProductNumber" readonly />
+            </label>
+
+            <label class="field">
+                <span>Slug</span>
+                <input asp-for="Product.Slug" />
+                <span asp-validation-for="Product.Slug" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Type</span>
+                <input asp-for="Product.ProductType" />
+                <span asp-validation-for="Product.ProductType" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Brand</span>
+                <select asp-for="Product.BrandId">
+                    <option value="">Unbranded</option>
+                    @foreach (var brand in Model.Product.BrandOptions)
+                    {
+                        <option value="@brand.Id">@brand.Label</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select asp-for="Product.ProductStatusDefinitionId">
+                    @foreach (var status in Model.Product.StatusOptions)
+                    {
+                        <option value="@status.Id">@status.Name (@status.Code)</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Tax Category</span>
+                <input asp-for="Product.TaxCategoryCode" />
+                <span asp-validation-for="Product.TaxCategoryCode" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Unit</span>
+                <input asp-for="Product.UnitOfMeasure" />
+                <span asp-validation-for="Product.UnitOfMeasure" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Categories</span>
+                <select asp-for="Product.SelectedCategoryIds" multiple size="6">
+                    @foreach (var category in Model.Product.CategoryOptions)
+                    {
+                        <option value="@category.Id">@category.Label</option>
+                }
+            </select>
+        </label>
+
+            @for (var i = 0; i < Model.Product.AttributeEditors.Count; i++)
+            {
+                <input asp-for="Product.AttributeEditors[i].ProductAttributeId" type="hidden" />
+                <input asp-for="Product.AttributeEditors[i].AttributeCode" type="hidden" />
+                <input asp-for="Product.AttributeEditors[i].AttributeName" type="hidden" />
+                <input asp-for="Product.AttributeEditors[i].DataType" type="hidden" />
+                <input asp-for="Product.AttributeEditors[i].IsRequired" type="hidden" />
+
+                @if (Model.Product.AttributeEditors[i].Options.Count > 0)
+                {
+                    <label class="field">
+                        <span>@Model.Product.AttributeEditors[i].AttributeName</span>
+                        <select asp-for="Product.AttributeEditors[i].AttributeOptionId">
+                            <option value="">Select option</option>
+                            @foreach (var option in Model.Product.AttributeEditors[i].Options)
+                            {
+                                <option value="@option.Id">@option.Value (@option.Code)</option>
+                            }
+                        </select>
+                    </label>
+                }
+                else
+                {
+                    <label class="field">
+                        <span>@Model.Product.AttributeEditors[i].AttributeName</span>
+                        <input asp-for="Product.AttributeEditors[i].ValueText" />
+                    </label>
+                }
+            }
+
+            <label class="field">
+                <span>Weight</span>
+                <input asp-for="Product.Weight" />
+            </label>
+
+            <label class="field">
+                <span>Length</span>
+                <input asp-for="Product.Length" />
+            </label>
+
+            <label class="field">
+                <span>Width</span>
+                <input asp-for="Product.Width" />
+            </label>
+
+            <label class="field">
+                <span>Height</span>
+                <input asp-for="Product.Height" />
+            </label>
+
+            <label class="field field-checkbox">
+                <input asp-for="Product.HasVariants" disabled />
+                <span>Has variants</span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Product</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Product.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Product.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Product</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <h3>Create Variant</h3>
+        <form method="post" asp-action="CreateVariant" asp-route-id="@Model.Product.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+            <label class="field">
+                <span>SKU</span>
+                <input asp-for="NewVariant.Sku" />
+                <span asp-validation-for="NewVariant.Sku" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select asp-for="NewVariant.ProductStatusDefinitionId">
+                    @foreach (var status in Model.NewVariant.StatusOptions)
+                    {
+                        <option value="@status.Id">@status.Name (@status.Code)</option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>EAN</span>
+                <input asp-for="NewVariant.Ean" />
+            </label>
+
+            <label class="field">
+                <span>MPN</span>
+                <input asp-for="NewVariant.Mpn" />
+            </label>
+
+            <label class="field">
+                <span>Barcode</span>
+                <input asp-for="NewVariant.Barcode" />
+            </label>
+
+            <label class="field">
+                <span>Weight</span>
+                <input asp-for="NewVariant.Weight" />
+            </label>
+
+            <label class="field">
+                <span>Length</span>
+                <input asp-for="NewVariant.Length" />
+            </label>
+
+            <label class="field">
+                <span>Width</span>
+                <input asp-for="NewVariant.Width" />
+            </label>
+
+            <label class="field">
+                <span>Height</span>
+                <input asp-for="NewVariant.Height" />
+            </label>
+
+            <label class="field field-checkbox">
+                <input asp-for="NewVariant.IsDefaultVariant" />
+                <span>Default variant</span>
+            </label>
+
+            @for (var i = 0; i < Model.NewVariant.AttributeEditors.Count; i++)
+            {
+                <input asp-for="NewVariant.AttributeEditors[i].ProductAttributeId" type="hidden" />
+                <input asp-for="NewVariant.AttributeEditors[i].AttributeCode" type="hidden" />
+                <input asp-for="NewVariant.AttributeEditors[i].AttributeName" type="hidden" />
+                <input asp-for="NewVariant.AttributeEditors[i].DataType" type="hidden" />
+                <input asp-for="NewVariant.AttributeEditors[i].IsRequired" type="hidden" />
+
+                @if (Model.NewVariant.AttributeEditors[i].Options.Count > 0)
+                {
+                    <label class="field">
+                        <span>@Model.NewVariant.AttributeEditors[i].AttributeName</span>
+                        <select asp-for="NewVariant.AttributeEditors[i].AttributeOptionId">
+                            <option value="">Select option</option>
+                            @foreach (var option in Model.NewVariant.AttributeEditors[i].Options)
+                            {
+                                <option value="@option.Id">@option.Value (@option.Code)</option>
+                            }
+                        </select>
+                    </label>
+                }
+                else
+                {
+                    <label class="field">
+                        <span>@Model.NewVariant.AttributeEditors[i].AttributeName</span>
+                        <input asp-for="NewVariant.AttributeEditors[i].ValueText" />
+                    </label>
+                }
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Create Variant</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Assigned Categories</h3>
+        <div class="topbar-meta">@Model.Categories.Count assigned</div>
+    </div>
+
+    @if (Model.Categories.Count > 0)
+    {
+        <div class="stat-strip">
+            @foreach (var category in Model.Categories)
+            {
+                var label = categoryLabels.TryGetValue(category.CategoryId, out var resolvedLabel)
+                    ? resolvedLabel
+                    : (string.IsNullOrWhiteSpace(category.Name) ? category.Code : category.Name);
+                <div class="stat-card">
+                    <span class="stat-label">@category.Code</span>
+                    <strong>@label</strong>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Hierarchy Path</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Categories.Count == 0)
+            {
+                <tr>
+                    <td colspan="2" class="empty-state">No categories assigned.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var category in Model.Categories)
+                {
+                    <tr>
+                        <td>@category.Code</td>
+                        <td>@(categoryLabels.TryGetValue(category.CategoryId, out var label) ? label : (string.IsNullOrWhiteSpace(category.Name) ? category.Code : category.Name))</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h3>Product Attributes</h3>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Product.AttributeEditors.Count == 0)
+            {
+                <tr>
+                    <td colspan="2" class="empty-state">No product attributes configured.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var editor in Model.Product.AttributeEditors)
+                {
+                    <tr>
+                        <td>@editor.AttributeName</td>
+                        <td>
+                            @if (editor.AttributeOptionId is Guid optionId)
+                            {
+                                @(editor.Options.FirstOrDefault(x => x.Id == optionId)?.Value ?? optionId.ToString())
+                            }
+                            else
+                            {
+                                @editor.ValueText
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Media</h3>
+        <div class="topbar-meta">Reusable assets assigned to this product</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Preview</th>
+                    <th>Asset</th>
+                    <th>Type</th>
+                    <th>Primary</th>
+                    <th>Sort</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Media.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No media assigned.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var media in Model.Media)
+                {
+                    <tr>
+                        <td><img src="@media.PublicUrl" alt="@media.AltText" style="width:64px;height:64px;object-fit:cover;border-radius:12px;" /></td>
+                        <td>
+                            <div class="table-primary">@media.FileName</div>
+                            <div class="table-secondary">@media.Title</div>
+                        </td>
+                        <td>@media.Type</td>
+                        <td>@(media.IsPrimary ? "Yes" : "No")</td>
+                        <td>@media.SortOrder</td>
+                        <td class="action-cell">
+                            <form method="post" asp-action="RemoveMedia" asp-route-id="@Model.Product.Id" asp-route-productMediaId="@media.Id">
+                                <input type="hidden" name="rowVersion" value="@Model.Product.RowVersion" />
+                                <button type="submit" class="button button-ghost">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" asp-action="UpsertMedia" asp-route-id="@Model.Product.Id" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="MediaForm.ProductId" type="hidden" />
+        <input asp-for="MediaForm.RowVersion" type="hidden" />
+
+        <label class="field field-full">
+            <span>Asset</span>
+            <select asp-for="MediaForm.MediaAssetId">
+                <option value="">Select asset</option>
+                @foreach (var asset in Model.MediaForm.MediaAssetOptions)
+                {
+                    <option value="@asset.Id">@asset.Label</option>
+                }
+            </select>
+            <span asp-validation-for="MediaForm.MediaAssetId" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Type</span>
+            <select asp-for="MediaForm.Type">
+                @foreach (var type in Model.MediaForm.MediaTypeOptions)
+                {
+                    <option value="@type">@type</option>
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Sort Order</span>
+            <input asp-for="MediaForm.SortOrder" />
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="MediaForm.IsPrimary" />
+            <span>Primary media</span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Assign Media</button>
+            <a asp-controller="MediaAssets" asp-action="New" class="button button-ghost">Create Asset</a>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Relations And Bundles</h3>
+        <div class="topbar-meta">Related products, accessories, and bundle components</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Target</th>
+                    <th>Quantity</th>
+                    <th>Sort</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Relations.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No relations configured.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var relation in Model.Relations)
+                {
+                    <tr>
+                        <td>@relation.RelationType</td>
+                        <td>@(string.IsNullOrWhiteSpace(relation.TargetProductName) ? relation.TargetProductNumber : $"{relation.TargetProductNumber} - {relation.TargetProductName}")</td>
+                        <td>@(relation.Quantity?.ToString("0.####") ?? "-")</td>
+                        <td>@relation.SortOrder</td>
+                        <td class="action-cell">
+                            <form method="post" asp-action="RemoveRelation" asp-route-id="@Model.Product.Id" asp-route-relationId="@relation.Id">
+                                <input type="hidden" name="rowVersion" value="@Model.Product.RowVersion" />
+                                <button type="submit" class="button button-ghost">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" asp-action="UpsertRelation" asp-route-id="@Model.Product.Id" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="RelationForm.ProductId" type="hidden" />
+        <input asp-for="RelationForm.RowVersion" type="hidden" />
+
+        <label class="field">
+            <span>Relation Type</span>
+            <select asp-for="RelationForm.RelationType">
+                @foreach (var relationType in Model.RelationForm.RelationTypeOptions)
+                {
+                    <option value="@relationType">@relationType</option>
+                }
+            </select>
+        </label>
+
+        <label class="field field-full">
+            <span>Target Product</span>
+            <select asp-for="RelationForm.TargetProductId">
+                <option value="">Select product</option>
+                @foreach (var product in Model.RelationForm.TargetProductOptions)
+                {
+                    <option value="@product.Id">@product.Label</option>
+                }
+            </select>
+            <span asp-validation-for="RelationForm.TargetProductId" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Quantity</span>
+            <input asp-for="RelationForm.Quantity" />
+            <span asp-validation-for="RelationForm.Quantity" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Sort Order</span>
+            <input asp-for="RelationForm.SortOrder" />
+            <span asp-validation-for="RelationForm.SortOrder" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Save Relation</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Translations</h3>
+        <div class="topbar-meta">Upsert by culture code</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Culture</th>
+                    <th>Name</th>
+                    <th>SEO</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Translations.Count == 0)
+            {
+                <tr>
+                    <td colspan="4" class="empty-state">No translations yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var translation in Model.Translations)
+                {
+                    <tr>
+                        <td>@translation.CultureCode</td>
+                        <td>@translation.Name</td>
+                        <td>@translation.SeoTitle</td>
+                        <td class="action-cell">
+                            <a asp-action="Details" asp-route-id="@Model.Product.Id" asp-route-cultureCode="@translation.CultureCode" class="button button-ghost">Edit</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" asp-action="UpsertTranslation" asp-route-id="@Model.Product.Id" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="TranslationForm.ProductId" type="hidden" />
+
+        <label class="field">
+            <span>Culture</span>
+            <input asp-for="TranslationForm.CultureCode" />
+            <span asp-validation-for="TranslationForm.CultureCode" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="TranslationForm.Name" />
+            <span asp-validation-for="TranslationForm.Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Short Description</span>
+            <input asp-for="TranslationForm.ShortDescription" />
+            <span asp-validation-for="TranslationForm.ShortDescription" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>SEO Title</span>
+            <input asp-for="TranslationForm.SeoTitle" />
+            <span asp-validation-for="TranslationForm.SeoTitle" class="field-error"></span>
+        </label>
+
+        <label class="field field-full">
+            <span>Long Description</span>
+            <textarea asp-for="TranslationForm.LongDescription" rows="4"></textarea>
+        </label>
+
+        <label class="field field-full">
+            <span>SEO Description</span>
+            <textarea asp-for="TranslationForm.SeoDescription" rows="3"></textarea>
+            <span asp-validation-for="TranslationForm.SeoDescription" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Save Translation</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h3>Variants</h3>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Status</th>
+                    <th>Default</th>
+                    <th>Updated</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Variants.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No variants yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var variant in Model.Variants)
+                {
+                    <tr>
+                        <td>@variant.Sku</td>
+                        <td><span class="status-pill">@variant.ProductStatus.Name</span></td>
+                        <td>@(variant.IsDefaultVariant ? "Yes" : "No")</td>
+                        <td>@variant.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="action-cell">
+                            <a asp-controller="Variants" asp-action="Details" asp-route-id="@variant.Id" class="button button-ghost">Open</a>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

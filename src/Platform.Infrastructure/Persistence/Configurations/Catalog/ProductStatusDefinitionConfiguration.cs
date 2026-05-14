@@ -8,7 +8,7 @@ public sealed class ProductStatusDefinitionConfiguration : IEntityTypeConfigurat
 {
     public void Configure(EntityTypeBuilder<ProductStatusDefinition> builder)
     {
-        builder.ToTable("ProductStatusDefinition", "dbo");
+        builder.ToTable("ProductStatusDefinition", "public");
 
         builder.HasKey(x => x.Id);
 
@@ -26,8 +26,12 @@ public sealed class ProductStatusDefinitionConfiguration : IEntityTypeConfigurat
         builder.Property(x => x.IsBuyable)
             .IsRequired();
 
+        builder.Property(x => x.EntityType)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property<Guid?>("TenantId");
-        builder.Property<string>("EntityType").HasMaxLength(32);
         builder.Property<bool>("IsDefault").HasDefaultValue(false);
         builder.Property<bool>("IsVisibleInBackoffice").HasDefaultValue(true);
         builder.Property<bool>("IsVisibleInStorefront").HasDefaultValue(true);
@@ -36,11 +40,12 @@ public sealed class ProductStatusDefinitionConfiguration : IEntityTypeConfigurat
         builder.Property<string>("Status").HasMaxLength(32);
         builder.Property<DateTime>("CreatedAtUtc");
         builder.Property<DateTime>("UpdatedAtUtc");
-        builder.Property<byte[]>("RowVersion")
-            .HasColumnType("rowversion")
-            .IsRowVersion();
+        builder.Property<string>("RowVersion")
+            .HasMaxLength(64)
+            .IsConcurrencyToken()
+            .IsRequired();
 
-        builder.HasIndex("TenantId", "EntityType", nameof(ProductStatusDefinition.Code))
+        builder.HasIndex("TenantId", nameof(ProductStatusDefinition.EntityType), nameof(ProductStatusDefinition.Code))
             .IsUnique();
     }
 }

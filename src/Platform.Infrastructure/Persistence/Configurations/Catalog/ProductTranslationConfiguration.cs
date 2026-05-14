@@ -8,7 +8,7 @@ public sealed class ProductTranslationConfiguration : IEntityTypeConfiguration<P
 {
     public void Configure(EntityTypeBuilder<ProductTranslation> builder)
     {
-        builder.ToTable("ProductTranslation", "dbo");
+        builder.ToTable("ProductTranslation", "public");
 
         builder.HasKey(x => x.Id);
 

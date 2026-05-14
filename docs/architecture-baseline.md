@@ -27,8 +27,8 @@ Use:
 My recommendation is:
 
 - Use `.NET`
-- Use `SQL Server` first if that materially reduces delivery friction
-- Keep the data layer portable enough that `PostgreSQL` remains a future option
+- Use `PostgreSQL` from day one when there is no existing production database yet
+- Keep the data layer portable enough that provider-specific logic stays isolated
 
 Why:
 
@@ -59,8 +59,8 @@ Reasons to choose `PostgreSQL` later or from day one:
 
 Pragmatic decision:
 
-- if you are building v1 mostly yourself, use `SQL Server`
-- if later you want a lower-cost default for broader self-hosting or SaaS operations, revisit `PostgreSQL`
+- if there is already a live SQL Server footprint, keep it until migration is justified
+- if there is no database yet, default to `PostgreSQL`
 
 ## Database Authentication Strategy
 
@@ -546,6 +546,31 @@ Use:
 
 GraphQL can be added later, but REST is the right starting point for operational simplicity.
 
+## Agentic Shopping
+
+If you want to support "agentic shopping first", treat that as a commerce-platform concern with a CMS companion, not as a CMS-only initiative.
+
+The platform should own:
+
+- structured catalog facts
+- variant-level price and availability resolution
+- machine-readable buyability rules
+- customer/company permission context
+- cart/order actions with deterministic side effects
+- auditability and idempotency
+
+The CMS or presentation layer should own:
+
+- editorial narratives
+- campaign landing pages
+- merchandising copy
+- presentation-specific composition
+
+Practical implication:
+
+- do not contort the admin PIM into a chatbot product
+- do make the storefront/cart/order APIs explicit enough that a shopping agent can reason over them without scraping UI-oriented output
+
 ## Integrations
 
 You explicitly want integrations both to and from the platform.
@@ -720,7 +745,7 @@ If I were starting this from zero, I would choose:
 
 - `.NET 10 LTS`
 - `ASP.NET Core`
-- `SQL Server` for your current context
+- `PostgreSQL` for a new install with no existing database footprint
 - `Entity Framework Core` or `Dapper + EF Core` hybrid
 - `FluentValidation`
 - `OpenAPI/Swagger`

@@ -1,0 +1,25 @@
+.vs/
+.dotnet/
+.dotnet-cli/
+.dotnet-cli /
+.dotnet-home/
+.dev-runtime/
+
+**/bin/
+**/obj/
+
+src/Platform.Backoffice/.data-protection/
+src/Platform.Api/.data-protection/
+
+*.log
+*.binlog
+*.pid
+*-build.txt
+*-diag.txt
+contracts-*.txt
+domain-build.txt
+api.stderr.log
+api.stdout.log
+
+*.user
+*.suo

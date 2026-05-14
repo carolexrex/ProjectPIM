@@ -1,0 +1,300 @@
+@model MarketDetailsPageViewModel
+@{
+    ViewData["Title"] = Model.Market.Code;
+    ViewData["PageTitle"] = Model.Market.Code;
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Market</div>
+        <h2>@Model.Market.Code</h2>
+        <p>@Model.Market.Name</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Market.Status</span>
+        <span>@Model.Market.DefaultCulture / @Model.Market.DefaultCurrency</span>
+        <span>Updated @Model.Market.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span>
+    </div>
+</section>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <h3>Edit Market</h3>
+        <form method="post" asp-action="Update" asp-route-id="@Model.Market.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="Market.Id" type="hidden" />
+            <input asp-for="Market.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Code</span>
+                <input asp-for="Market.Code" />
+                <span asp-validation-for="Market.Code" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Name</span>
+                <input asp-for="Market.Name" />
+                <span asp-validation-for="Market.Name" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Default Currency</span>
+                <input asp-for="Market.DefaultCurrency" />
+                <span asp-validation-for="Market.DefaultCurrency" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>Default Culture</span>
+                <input asp-for="Market.DefaultCulture" />
+                <span asp-validation-for="Market.DefaultCulture" class="field-error"></span>
+            </label>
+
+            <label class="field">
+                <span>VAT Mode</span>
+                <select asp-for="Market.VatMode">
+                    @foreach (var vatMode in Model.Market.VatModeOptions)
+                    {
+                        <option value="@vatMode">@vatMode</option>
+                    }
+                </select>
+                <span asp-validation-for="Market.VatMode" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-primary">Save Market</button>
+                <a asp-action="Index" class="button button-ghost">Back</a>
+            </div>
+        </form>
+
+        @if (!string.Equals(Model.Market.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+        {
+            <form method="post" asp-action="Archive" asp-route-id="@Model.Market.Id" class="inline-danger-form">
+                <button type="submit" class="button button-danger">Archive Market</button>
+            </form>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Overview</h3>
+            <div class="topbar-meta">Locales and availability in one place</div>
+        </div>
+
+        <div class="stat-strip">
+            <div class="stat-card">
+                <span class="stat-label">Currencies</span>
+                <strong>@Model.Currencies.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Cultures</span>
+                <strong>@Model.Cultures.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Assigned products</span>
+                <strong>@Model.ProductAssignments.Count</strong>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <th>Default currency</th>
+                        <td>@Model.Market.DefaultCurrency</td>
+                    </tr>
+                    <tr>
+                        <th>Default culture</th>
+                        <td>@Model.Market.DefaultCulture</td>
+                    </tr>
+                    <tr>
+                        <th>VAT mode</th>
+                        <td>@Model.Market.VatMode</td>
+                    </tr>
+                    <tr>
+                        <th>Created</th>
+                        <td>@Model.Market.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="two-column-grid">
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Currencies</h3>
+            <div class="topbar-meta">Comma-separated ISO currency codes</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Currency</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var currency in Model.Currencies)
+                {
+                    <tr>
+                        <td>@currency.CurrencyCode</td>
+                        <td>@(currency.IsDefault ? "Yes" : "No")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="AssignCurrencies" asp-route-id="@Model.Market.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="CurrenciesForm.MarketId" type="hidden" />
+            <input asp-for="CurrenciesForm.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Default Currency</span>
+                <input asp-for="CurrenciesForm.DefaultCurrency" />
+                <span asp-validation-for="CurrenciesForm.DefaultCurrency" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Currency Codes</span>
+                <input asp-for="CurrenciesForm.CurrencyCodesCsv" />
+                <span asp-validation-for="CurrenciesForm.CurrencyCodesCsv" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Save Currencies</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-toolbar">
+            <h3>Cultures</h3>
+            <div class="topbar-meta">Comma-separated culture codes</div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Culture</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var culture in Model.Cultures)
+                {
+                    <tr>
+                        <td>@culture.CultureCode</td>
+                        <td>@(culture.IsDefault ? "Yes" : "No")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <form method="post" asp-action="AssignCultures" asp-route-id="@Model.Market.Id" class="editor-grid compact-grid">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input asp-for="CulturesForm.MarketId" type="hidden" />
+            <input asp-for="CulturesForm.RowVersion" type="hidden" />
+
+            <label class="field">
+                <span>Default Culture</span>
+                <input asp-for="CulturesForm.DefaultCulture" />
+                <span asp-validation-for="CulturesForm.DefaultCulture" class="field-error"></span>
+            </label>
+
+            <label class="field field-full">
+                <span>Culture Codes</span>
+                <input asp-for="CulturesForm.CultureCodesCsv" />
+                <span asp-validation-for="CulturesForm.CultureCodesCsv" class="field-error"></span>
+            </label>
+
+            <div class="form-actions">
+                <button type="submit" class="button button-secondary">Save Cultures</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-toolbar">
+        <h3>Product Availability</h3>
+        <div class="topbar-meta">Explicit product assignment for this market</div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.ProductAssignments.Count == 0)
+            {
+                <tr>
+                    <td colspan="3" class="empty-state">No products assigned yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var assignment in Model.ProductAssignments)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@assignment.ProductNumber</div>
+                            <div class="table-secondary">@assignment.ProductName</div>
+                        </td>
+                        <td><span class="status-pill">@assignment.Status</span></td>
+                        <td class="action-cell">
+                            <form method="post" asp-action="RemoveProductAssignment" asp-route-id="@Model.Market.Id" asp-route-productId="@assignment.ProductId">
+                                <input type="hidden" name="rowVersion" value="@Model.Market.RowVersion" />
+                                <button type="submit" class="button button-ghost">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" asp-action="UpsertProductAssignment" asp-route-id="@Model.Market.Id" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        <input asp-for="ProductAssignmentForm.MarketId" type="hidden" />
+        <input asp-for="ProductAssignmentForm.RowVersion" type="hidden" />
+
+        <label class="field field-full">
+            <span>Product</span>
+            <select asp-for="ProductAssignmentForm.ProductId">
+                <option value="">Select product</option>
+                @foreach (var product in Model.ProductAssignmentForm.ProductOptions)
+                {
+                    <option value="@product.Id">@product.Label</option>
+                }
+            </select>
+            <span asp-validation-for="ProductAssignmentForm.ProductId" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select asp-for="ProductAssignmentForm.Status">
+                @foreach (var status in Model.ProductAssignmentForm.StatusOptions)
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+            <span asp-validation-for="ProductAssignmentForm.Status" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Assign Product</button>
+        </div>
+    </form>
+</section>

@@ -1,0 +1,76 @@
+@model CartListPageViewModel
+@{
+    ViewData["Title"] = "Carts";
+    ViewData["PageTitle"] = "Carts";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Commerce</div>
+        <h2>Carts</h2>
+        <p>Inspect active baskets, expired sessions, and conversion candidates.</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Total total</span>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="editor-grid compact-grid">
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                <option value="">All</option>
+                <option value="Active" selected="@(Model.Status == "Active")">Active</option>
+                <option value="Expired" selected="@(Model.Status == "Expired")">Expired</option>
+                <option value="Converted" selected="@(Model.Status == "Converted")">Converted</option>
+            </select>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Cart</th>
+                    <th>Customer</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Lines</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Carts.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No carts found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var cart in Model.Carts)
+                {
+                    <tr>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@cart.Id" class="table-primary">@cart.Id</a>
+                            <div class="table-secondary">@cart.CurrencyCode / @cart.CultureCode</div>
+                        </td>
+                        <td>@(cart.Email ?? cart.CustomerId?.ToString() ?? "Anonymous")</td>
+                        <td>@cart.Status</td>
+                        <td>@cart.GrandTotal.ToString("0.00")</td>
+                        <td>@cart.LineCount</td>
+                        <td>@cart.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

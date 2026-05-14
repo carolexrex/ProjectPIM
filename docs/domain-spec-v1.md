@@ -1285,7 +1285,7 @@ Admin/integration API should cover:
 
 Storefront API should cover:
 
-- market context bootstrap
+- market context resolution
 - category/product browsing
 - product detail by slug or id
 - price and availability reads

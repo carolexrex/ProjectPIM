@@ -1,0 +1,84 @@
+using Platform.Domain.Common;
+
+namespace Platform.Domain.Integrations;
+
+public sealed class OutboxMessage
+{
+    private OutboxMessage()
+    {
+        Id = Guid.Empty;
+        EventType = string.Empty;
+        AggregateType = string.Empty;
+        PayloadJson = string.Empty;
+        RowVersion = string.Empty;
+    }
+
+    public OutboxMessage(
+        Guid id,
+        string eventType,
+        string aggregateType,
+        Guid aggregateId,
+        string payloadJson,
+        DateTime occurredAtUtc)
+    {
+        Id = id;
+        EventType = NormalizeRequired(eventType);
+        AggregateType = NormalizeRequired(aggregateType);
+        AggregateId = aggregateId;
+        PayloadJson = NormalizeRequired(payloadJson);
+        OccurredAtUtc = occurredAtUtc;
+        CreatedAtUtc = occurredAtUtc;
+        UpdatedAtUtc = occurredAtUtc;
+        RowVersion = NewRowVersion();
+    }
+
+    public Guid Id { get; private set; }
+    public string EventType { get; private set; }
+    public string AggregateType { get; private set; }
+    public Guid AggregateId { get; private set; }
+    public string PayloadJson { get; private set; }
+    public DateTime OccurredAtUtc { get; private set; }
+    public DateTime? PublishedAtUtc { get; private set; }
+    public DateTime CreatedAtUtc { get; private set; }
+    public DateTime UpdatedAtUtc { get; private set; }
+    public string RowVersion { get; private set; }
+
+    public bool IsPublished => PublishedAtUtc.HasValue;
+
+    public void MarkPublished(string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        if (PublishedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("The outbox message is already published.");
+        }
+
+        PublishedAtUtc = DateTime.UtcNow;
+        Touch();
+    }
+
+    private void EnsureRowVersion(string rowVersion)
+    {
+        if (!string.Equals(RowVersion, rowVersion, StringComparison.Ordinal))
+        {
+            throw new ConcurrencyException("The outbox message has changed since it was loaded.");
+        }
+    }
+
+    private void Touch()
+    {
+        UpdatedAtUtc = DateTime.UtcNow;
+        RowVersion = NewRowVersion();
+    }
+
+    private static string NormalizeRequired(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static string NewRowVersion()
+    {
+        return Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+    }
+}

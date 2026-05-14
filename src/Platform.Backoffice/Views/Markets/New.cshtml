@@ -1,0 +1,55 @@
+@model MarketCreateViewModel
+@{
+    ViewData["Title"] = "Create Market";
+    ViewData["PageTitle"] = "Create Market";
+}
+
+<section class="panel">
+    <div class="panel-intro">
+        <p>Markets define sellable locales, default currency and culture, and product availability for channel assignment.</p>
+    </div>
+
+    <form method="post" class="editor-grid compact-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+            <span asp-validation-for="Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Default Currency</span>
+            <input asp-for="DefaultCurrency" />
+            <span asp-validation-for="DefaultCurrency" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Default Culture</span>
+            <input asp-for="DefaultCulture" />
+            <span asp-validation-for="DefaultCulture" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>VAT Mode</span>
+            <select asp-for="VatMode">
+                @foreach (var vatMode in Model.VatModeOptions)
+                {
+                    <option value="@vatMode">@vatMode</option>
+                }
+            </select>
+            <span asp-validation-for="VatMode" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Market</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>

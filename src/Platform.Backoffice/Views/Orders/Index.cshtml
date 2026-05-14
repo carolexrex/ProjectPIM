@@ -1,0 +1,94 @@
+@model OrderListPageViewModel
+@{
+    ViewData["Title"] = "Orders";
+    ViewData["PageTitle"] = "Orders";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Commerce</div>
+        <h2>Orders</h2>
+        <p>Track placed orders, payment progress, and fulfillment state.</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Total total</span>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="editor-grid compact-grid">
+        <label class="field">
+            <span>Search</span>
+            <input type="text" name="search" value="@Model.Search" />
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                <option value="">All</option>
+                <option value="Placed" selected="@(Model.Status == "Placed")">Placed</option>
+                <option value="Processing" selected="@(Model.Status == "Processing")">Processing</option>
+                <option value="Completed" selected="@(Model.Status == "Completed")">Completed</option>
+                <option value="Cancelled" selected="@(Model.Status == "Cancelled")">Cancelled</option>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Payment</span>
+            <select name="paymentStatus">
+                <option value="">All</option>
+                <option value="Pending" selected="@(Model.PaymentStatus == "Pending")">Pending</option>
+                <option value="Authorized" selected="@(Model.PaymentStatus == "Authorized")">Authorized</option>
+                <option value="Paid" selected="@(Model.PaymentStatus == "Paid")">Paid</option>
+                <option value="Failed" selected="@(Model.PaymentStatus == "Failed")">Failed</option>
+                <option value="Refunded" selected="@(Model.PaymentStatus == "Refunded")">Refunded</option>
+            </select>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-secondary">Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Payment</th>
+                    <th>Total</th>
+                    <th>Placed</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Orders.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="empty-state">No orders found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var order in Model.Orders)
+                {
+                    <tr>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@order.Id" class="table-primary">@order.OrderNumber</a>
+                            <div class="table-secondary">@order.Id</div>
+                        </td>
+                        <td>@order.Email</td>
+                        <td>@order.Status</td>
+                        <td>@order.PaymentStatus</td>
+                        <td>@order.GrandTotal.ToString("0.00")</td>
+                        <td>@order.PlacedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>

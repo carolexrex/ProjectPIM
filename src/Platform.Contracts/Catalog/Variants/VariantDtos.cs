@@ -5,6 +5,17 @@ public sealed record VariantAttributeValueDto(
     Guid? AttributeOptionId,
     string? ValueText);
 
+public sealed record VariantMediaDto(
+    Guid Id,
+    Guid MediaAssetId,
+    string Type,
+    int SortOrder,
+    bool IsPrimary,
+    string FileName,
+    string PublicUrl,
+    string? Title,
+    string? AltText);
+
 public sealed record VariantSummaryDto(
     Guid Id,
     Guid ProductId,
@@ -36,6 +47,14 @@ public sealed record VariantDetailsDto(
     decimal? Width,
     decimal? Height,
     IReadOnlyList<VariantAttributeValueDto> AttributeValues,
+    IReadOnlyList<VariantMediaDto> Media,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
     string RowVersion);
+
+public sealed record VariantLookupDto(
+    Guid Id,
+    Guid ProductId,
+    string Sku,
+    string ProductNumber,
+    string? ProductDefaultName);

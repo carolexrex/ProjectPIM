@@ -9,6 +9,8 @@ public sealed record CreateProductCommand(
     string TaxCategoryCode,
     string UnitOfMeasure,
     bool HasVariants,
+    IReadOnlyList<Guid> CategoryIds,
+    IReadOnlyList<CreateProductAttributeValueCommand> AttributeValues,
     decimal? Weight,
     decimal? Length,
     decimal? Width,

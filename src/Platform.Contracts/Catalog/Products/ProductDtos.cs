@@ -14,6 +14,36 @@ public sealed record ProductTranslationDto(
     string? SeoTitle,
     string? SeoDescription);
 
+public sealed record ProductCategoryAssignmentDto(
+    Guid CategoryId,
+    string Code,
+    string? Name);
+
+public sealed record ProductAttributeValueDto(
+    Guid ProductAttributeId,
+    Guid? AttributeOptionId,
+    string? ValueText);
+
+public sealed record ProductRelationDto(
+    Guid Id,
+    Guid TargetProductId,
+    string TargetProductNumber,
+    string? TargetProductName,
+    string RelationType,
+    decimal? Quantity,
+    int SortOrder);
+
+public sealed record ProductMediaDto(
+    Guid Id,
+    Guid MediaAssetId,
+    string Type,
+    int SortOrder,
+    bool IsPrimary,
+    string FileName,
+    string PublicUrl,
+    string? Title,
+    string? AltText);
+
 public sealed record ProductSummaryDto(
     Guid Id,
     string ProductNumber,
@@ -46,7 +76,17 @@ public sealed record ProductDetailsDto(
     decimal? Length,
     decimal? Width,
     decimal? Height,
+    IReadOnlyList<ProductCategoryAssignmentDto> Categories,
+    IReadOnlyList<ProductAttributeValueDto> AttributeValues,
+    IReadOnlyList<ProductMediaDto> Media,
+    IReadOnlyList<ProductRelationDto> Relations,
     IReadOnlyList<ProductTranslationDto> Translations,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc,
     string RowVersion);
+
+public sealed record ProductLookupDto(
+    Guid Id,
+    string ProductNumber,
+    string? DefaultName,
+    bool HasVariants);

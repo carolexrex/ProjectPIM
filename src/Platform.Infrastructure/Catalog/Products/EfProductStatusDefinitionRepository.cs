@@ -14,9 +14,32 @@ public sealed class EfProductStatusDefinitionRepository : IProductStatusDefiniti
         _dbContext = dbContext;
     }
 
-    public async Task<ProductStatusDefinition?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProductStatusDefinition>> ListAsync(
+        ProductStatusEntityType entityType,
+        CancellationToken cancellationToken)
     {
         return await _dbContext.ProductStatusDefinitions
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .AsNoTracking()
+            .Where(x => x.EntityType == entityType)
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ProductStatusDefinition?> GetByIdAsync(
+        Guid id,
+        ProductStatusEntityType entityType,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.ProductStatusDefinitions
+            .FirstOrDefaultAsync(x => x.Id == id && x.EntityType == entityType, cancellationToken);
+    }
+
+    public async Task<ProductStatusDefinition?> GetByCodeAsync(
+        string code,
+        ProductStatusEntityType entityType,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.ProductStatusDefinitions
+            .FirstOrDefaultAsync(x => x.Code == code && x.EntityType == entityType, cancellationToken);
     }
 }

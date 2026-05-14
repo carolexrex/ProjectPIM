@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using Platform.Infrastructure.Security;
 
 namespace Platform.Infrastructure.Persistence;
 
@@ -24,9 +25,9 @@ public sealed class DesignTimePlatformDbContextFactory : IDesignTimeDbContextFac
         }
 
         var optionsBuilder = new DbContextOptionsBuilder<PlatformDbContext>();
-        optionsBuilder.UseSqlServer(connectionString);
+        optionsBuilder.UseNpgsql(connectionString);
 
-        return new PlatformDbContext(optionsBuilder.Options);
+        return new PlatformDbContext(optionsBuilder.Options, new SystemCurrentActorAccessor());
     }
 
     private static string ResolveApiProjectPath()

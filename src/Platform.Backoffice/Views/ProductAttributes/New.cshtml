@@ -1,0 +1,92 @@
+@model ProductAttributeCreateViewModel
+@{
+    ViewData["Title"] = "New Attribute";
+    ViewData["PageTitle"] = "New Attribute";
+}
+
+<section class="panel">
+    <h3>Create Product Attribute</h3>
+    <div class="panel-intro">Option lines use `CODE=Value`. One option per line.</div>
+
+    <form method="post" class="editor-grid">
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        <label class="field">
+            <span>Code</span>
+            <input asp-for="Code" />
+            <span asp-validation-for="Code" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Name</span>
+            <input asp-for="Name" />
+            <span asp-validation-for="Name" class="field-error"></span>
+        </label>
+
+        <label class="field">
+            <span>Scope</span>
+            <select asp-for="Scope">
+                @foreach (var scope in Model.ScopeOptions)
+                {
+                    @if (string.Equals(Model.Scope, scope, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@scope" selected>@scope</option>
+                    }
+                    else
+                    {
+                        <option value="@scope">@scope</option>
+                    }
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Data Type</span>
+            <select asp-for="DataType">
+                @foreach (var dataType in Model.DataTypeOptions)
+                {
+                    @if (string.Equals(Model.DataType, dataType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@dataType" selected>@dataType</option>
+                    }
+                    else
+                    {
+                        <option value="@dataType">@dataType</option>
+                    }
+                }
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Sort Order</span>
+            <input asp-for="SortOrder" />
+            <span asp-validation-for="SortOrder" class="field-error"></span>
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="IsVariantDefining" />
+            <span>Variant-defining</span>
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="IsFilterable" />
+            <span>Filterable</span>
+        </label>
+
+        <label class="field field-checkbox">
+            <input asp-for="IsRequired" />
+            <span>Required</span>
+        </label>
+
+        <label class="field field-full">
+            <span>Options</span>
+            <textarea asp-for="OptionsText" rows="8"></textarea>
+            <span asp-validation-for="OptionsText" class="field-error"></span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create Attribute</button>
+            <a asp-action="Index" class="button button-ghost">Back</a>
+        </div>
+    </form>
+</section>
