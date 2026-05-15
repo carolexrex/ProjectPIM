@@ -5,6 +5,7 @@ using Platform.Application.Catalog.Inventory.Commands;
 using Platform.Application.Catalog.Inventory.Queries;
 using Platform.Application.Catalog.Markets;
 using Platform.Application.Catalog.Variants;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Inventory;
 using Platform.Contracts.Common;
 using Platform.Domain.Catalog.Inventory;
@@ -20,6 +21,7 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
     private readonly IInventoryBalanceRepository _inventoryBalanceRepository;
     private readonly IMarketRepository _marketRepository;
     private readonly IVariantRepository _variantRepository;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public InventoryAdminApplicationService(
@@ -27,12 +29,14 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         IInventoryBalanceRepository inventoryBalanceRepository,
         IMarketRepository marketRepository,
         IVariantRepository variantRepository,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _inventoryLocationRepository = inventoryLocationRepository;
         _inventoryBalanceRepository = inventoryBalanceRepository;
         _marketRepository = marketRepository;
         _variantRepository = variantRepository;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -176,6 +180,10 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
                 command.RowVersion);
         }
 
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(
+            variant.Id,
+            "InventoryBalanceUpserted",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapBalance(balance, variant.Sku);
     }
@@ -221,6 +229,10 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         }
 
         await _inventoryBalanceRepository.AddTransactionAsync(transaction, cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(
+            variant.Id,
+            "InventoryAdjusted",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapTransaction(transaction, variant.Sku);
     }

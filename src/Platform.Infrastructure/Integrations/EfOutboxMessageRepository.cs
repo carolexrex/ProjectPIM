@@ -23,6 +23,22 @@ public sealed class EfOutboxMessageRepository : IOutboxMessageRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<OutboxMessage>> ListUnpublishedAsync(int maxMessages, CancellationToken cancellationToken)
+    {
+        if (maxMessages <= 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.OutboxMessages
+            .AsNoTracking()
+            .Where(x => !x.PublishedAtUtc.HasValue)
+            .OrderBy(x => x.OccurredAtUtc)
+            .ThenBy(x => x.Id)
+            .Take(maxMessages)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)
     {
         await _dbContext.OutboxMessages.AddAsync(outboxMessage, cancellationToken);

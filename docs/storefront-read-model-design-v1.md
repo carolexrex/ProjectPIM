@@ -555,8 +555,10 @@ Exit:
 
 Current implementation status:
 
-- not implemented yet
-- rebuild exists, but automatic targeted refresh on write-side events is still pending
+- partially implemented
+- direct product, variant, price-list entry, and inventory-balance mutations now enqueue internal storefront projection refresh requests
+- `Platform.Worker` processes refresh requests before publishing outbox messages, resolving affected variants back to product projection rows
+- broader dependency fan-out is still pending for brand, category, market assignment, and inventory-location market assignment changes
 
 ### Phase 4: Search Refinement
 

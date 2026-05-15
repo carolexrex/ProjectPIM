@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Platform.Application.Integrations;
+using Platform.Application.Storefront;
 
 namespace Platform.Worker.IntegrationJobs;
 
@@ -32,10 +33,14 @@ public sealed class IntegrationJobWorker : BackgroundService
             {
                 await using var scope = _serviceScopeFactory.CreateAsyncScope();
                 var integrationJobExecutionService = scope.ServiceProvider.GetRequiredService<IIntegrationJobExecutionService>();
+                var storefrontProjectionOutboxProcessor = scope.ServiceProvider.GetRequiredService<IStorefrontProjectionOutboxProcessor>();
                 var outboxExecutionService = scope.ServiceProvider.GetRequiredService<IWebhookOutboxExecutionService>();
                 var webhookDeliveryExecutionService = scope.ServiceProvider.GetRequiredService<IWebhookDeliveryExecutionService>();
 
                 var executed = await integrationJobExecutionService.ExecutePendingAsync(maxJobsPerCycle, stoppingToken);
+                var refreshed = await storefrontProjectionOutboxProcessor.ExecutePendingAsync(
+                    Math.Max(maxOutboxMessagesPerCycle, _options.Value.MaxStorefrontProjectionRefreshMessagesPerCycle),
+                    stoppingToken);
                 var published = await outboxExecutionService.ExecutePendingAsync(maxOutboxMessagesPerCycle, stoppingToken);
                 var delivered = await webhookDeliveryExecutionService.ExecutePendingAsync(maxWebhookDeliveriesPerCycle, stoppingToken);
 
@@ -47,6 +52,11 @@ public sealed class IntegrationJobWorker : BackgroundService
                 if (published > 0)
                 {
                     _logger.LogInformation("Published {MessageCount} outbox message(s).", published);
+                }
+
+                if (refreshed > 0)
+                {
+                    _logger.LogInformation("Processed {MessageCount} storefront projection refresh request(s).", refreshed);
                 }
 
                 if (delivered > 0)

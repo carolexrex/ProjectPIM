@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Platform.Application.Catalog.Brands.Commands;
+using Platform.Application.Catalog.Inventory.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Catalog.Products.Commands;
 using Platform.Contracts.Integrations;
@@ -8,6 +9,7 @@ using Platform.Infrastructure.Catalog;
 using Platform.Infrastructure.Catalog.Attributes;
 using Platform.Infrastructure.Catalog.Brands;
 using Platform.Infrastructure.Catalog.Categories;
+using Platform.Infrastructure.Catalog.Inventory;
 using Platform.Infrastructure.Catalog.Markets;
 using Platform.Infrastructure.Catalog.Media;
 using Platform.Infrastructure.Catalog.Pricing;
@@ -15,6 +17,7 @@ using Platform.Infrastructure.Catalog.Products;
 using Platform.Infrastructure.Catalog.Variants;
 using Platform.Infrastructure.Integrations;
 using Platform.Infrastructure.Persistence;
+using Platform.Infrastructure.Storefront;
 
 namespace Platform.Tests;
 
@@ -92,7 +95,8 @@ public sealed class CatalogMutationOutboxTests
                 10m),
             CancellationToken.None);
 
-        var message = Assert.Single(store.OutboxMessages.Values);
+        var message = Assert.Single(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.ProductCreated);
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
         Assert.Equal(WebhookEventTypes.ProductCreated, message.EventType);
         Assert.Equal("Product", message.AggregateType);
         Assert.Equal(created.Id, message.AggregateId);
@@ -123,7 +127,8 @@ public sealed class CatalogMutationOutboxTests
 
         Assert.NotNull(translation);
 
-        var message = Assert.Single(store.OutboxMessages.Values);
+        var message = Assert.Single(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.ProductUpdated);
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
         Assert.Equal(WebhookEventTypes.ProductUpdated, message.EventType);
 
         var payload = Deserialize<ProductWebhookEventDto>(message.PayloadJson);
@@ -176,12 +181,35 @@ public sealed class CatalogMutationOutboxTests
 
         Assert.NotNull(updated);
 
-        var message = Assert.Single(store.OutboxMessages.Values);
+        var message = Assert.Single(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.PriceListUpdated);
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
         Assert.Equal(WebhookEventTypes.PriceListUpdated, message.EventType);
 
         var payload = Deserialize<PriceListWebhookEventDto>(message.PayloadJson);
         Assert.Equal("EntryUpserted", payload.ChangeType);
         Assert.Contains(payload.PriceList.Entries, x => x.MinQuantity == 2 && x.Amount == 1399m);
+    }
+
+    [Fact]
+    public async Task InventoryBalanceUpsert_EnqueuesStorefrontProjectionRefreshRequest()
+    {
+        var store = new InMemoryCatalogStore();
+        var service = CreateInventoryService(store);
+        var balance = store.InventoryBalances[Guid.Parse("66000000-0000-0000-0000-000000000001")];
+
+        await service.UpsertBalanceAsync(
+            new UpsertInventoryBalanceCommand(
+                balance.InventoryLocationId,
+                balance.VariantId,
+                30m,
+                1m,
+                0m,
+                false,
+                balance.RowVersion),
+            CancellationToken.None);
+
+        var message = Assert.Single(store.OutboxMessages.Values);
+        Assert.Equal(WebhookEventTypes.StorefrontProjectionRefreshRequested, message.EventType);
     }
 
     private static BrandAdminApplicationService CreateBrandService(InMemoryCatalogStore store)
@@ -203,6 +231,7 @@ public sealed class CatalogMutationOutboxTests
             new InMemoryMediaAssetRepository(store),
             new InMemoryProductStatusDefinitionRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }
 
@@ -213,6 +242,18 @@ public sealed class CatalogMutationOutboxTests
             new InMemoryMarketRepository(store),
             new InMemoryVariantRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static InventoryAdminApplicationService CreateInventoryService(InMemoryCatalogStore store)
+    {
+        return new InventoryAdminApplicationService(
+            new InMemoryInventoryLocationRepository(store),
+            new InMemoryInventoryBalanceRepository(store),
+            new InMemoryMarketRepository(store),
+            new InMemoryVariantRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }
 

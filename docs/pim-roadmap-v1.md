@@ -319,6 +319,7 @@ Completed In Current Slice:
 - `GET /api/storefront/products/by-number/{productNumber}` resolves product detail through a stable commerce identifier for CMS/integration consumers
 - `StorefrontProductProjection` foundation is implemented with projection entity, repository, builder, refresh service, EF configuration, and migration `AddStorefrontProductProjection`
 - admin API and worker now support a real storefront projection rebuild job, and storefront product browse/detail read through the projection repository
+- direct product, variant, price-list entry, and inventory-balance mutations now enqueue targeted storefront projection refresh requests processed by the worker
 - storefront context resolution supports explicit channel/market input and host-name-based channel lookup
 - product browse now exposes supported sort values plus category/brand facet metadata for storefront consumers
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior

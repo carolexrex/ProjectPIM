@@ -1,25 +1,66 @@
-.vs/
-.dotnet/
-.dotnet-cli/
-.dotnet-cli /
-.dotnet-home/
-.dev-runtime/
-
+# Build output
+bin/
+obj/
 **/bin/
 **/obj/
+artifacts/
+TestResults/
+coverage/
+coverage.*
+*.trx
+*.coverage
+*.coveragexml
 
-src/Platform.Backoffice/.data-protection/
-src/Platform.Api/.data-protection/
+# .NET CLI, local SDK/runtime state, and workload cache
+.dotnet/
+.dotnet-cli/
+.dotnet-home/
+.dev-runtime/
+*.nupkg
+*.snupkg
+*.symbols.nupkg
 
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.rsuser
+*.DotSettings.user
+*.userosscache
+*.sln.docstates
+
+# ASP.NET/local runtime state
+**/.data-protection/
+*.Development.json.user
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Logs, diagnostics, and transient process files
 *.log
 *.binlog
 *.pid
+*.tmp
+*.temp
+*.cache
 *-build.txt
 *-diag.txt
+restore-diag*.txt
 contracts-*.txt
 domain-build.txt
 api.stderr.log
 api.stdout.log
 
-*.user
-*.suo
+# Secrets and local certificates
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+secrets.json

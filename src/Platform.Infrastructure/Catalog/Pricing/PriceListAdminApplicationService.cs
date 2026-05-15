@@ -7,6 +7,7 @@ using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Catalog.Pricing.Queries;
 using Platform.Application.Catalog.Variants;
 using Platform.Application.Integrations;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Pricing;
 using Platform.Contracts.Common;
 using Platform.Contracts.Integrations;
@@ -23,6 +24,7 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
     private readonly IMarketRepository _marketRepository;
     private readonly IVariantRepository _variantRepository;
     private readonly IOutboxEventPublisher _outboxEventPublisher;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public PriceListAdminApplicationService(
@@ -30,12 +32,14 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
         IMarketRepository marketRepository,
         IVariantRepository variantRepository,
         IOutboxEventPublisher outboxEventPublisher,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _priceListRepository = priceListRepository;
         _marketRepository = marketRepository;
         _variantRepository = variantRepository;
         _outboxEventPublisher = outboxEventPublisher;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -99,6 +103,7 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
             command.RowVersion);
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "Updated", details, cancellationToken);
+        await EnqueueVariantRefreshForPriceListEntriesAsync(priceList, "PriceListUpdated", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -114,6 +119,7 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
         priceList.Archive();
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "Archived", details, cancellationToken);
+        await EnqueueVariantRefreshForPriceListEntriesAsync(priceList, "PriceListArchived", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -140,6 +146,7 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
         priceList.UpsertMarketAssignment(command.MarketId, command.Priority, command.IsBasePriceList, command.RowVersion);
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "MarketAssignmentUpserted", details, cancellationToken);
+        await EnqueueVariantRefreshForPriceListEntriesAsync(priceList, "PriceListMarketAssignmentUpserted", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -155,6 +162,7 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
         priceList.RemoveMarketAssignment(command.MarketId, command.RowVersion);
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "MarketAssignmentRemoved", details, cancellationToken);
+        await EnqueueVariantRefreshForPriceListEntriesAsync(priceList, "PriceListMarketAssignmentRemoved", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -191,6 +199,10 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
             command.RowVersion);
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "EntryUpserted", details, cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(
+            command.TargetId,
+            "PriceListEntryUpserted",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -203,9 +215,18 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
             return null;
         }
 
+        var removedVariantIds = priceList.Entries
+            .Where(x => x.Id == command.EntryId && string.Equals(x.TargetType, "Variant", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.TargetId)
+            .ToList();
+
         priceList.RemoveEntry(command.EntryId, command.RowVersion);
         var details = await MapDetailsAsync(priceList, cancellationToken);
         await PublishEventAsync(WebhookEventTypes.PriceListUpdated, "EntryRemoved", details, cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantsRefreshAsync(
+            removedVariantIds,
+            "PriceListEntryRemoved",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -222,6 +243,23 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
             "PriceList",
             details.Id,
             JsonSerializer.Serialize(payload, JsonOptions),
+            cancellationToken);
+    }
+
+    private Task EnqueueVariantRefreshForPriceListEntriesAsync(
+        PriceList priceList,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var variantIds = priceList.Entries
+            .Where(x => string.Equals(x.TargetType, "Variant", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.TargetId)
+            .Distinct()
+            .ToList();
+
+        return _storefrontProjectionRefreshRequestPublisher.EnqueueVariantsRefreshAsync(
+            variantIds,
+            reason,
             cancellationToken);
     }
 

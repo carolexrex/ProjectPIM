@@ -26,6 +26,25 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
         return Task.FromResult(message);
     }
 
+    public Task<IReadOnlyList<OutboxMessage>> ListUnpublishedAsync(int maxMessages, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (maxMessages <= 0)
+        {
+            return Task.FromResult<IReadOnlyList<OutboxMessage>>([]);
+        }
+
+        IReadOnlyList<OutboxMessage> messages = _store.OutboxMessages.Values
+            .Where(x => !x.IsPublished)
+            .OrderBy(x => x.OccurredAtUtc)
+            .ThenBy(x => x.Id)
+            .Take(maxMessages)
+            .ToList();
+
+        return Task.FromResult(messages);
+    }
+
     public Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -6,6 +6,7 @@ public sealed class IntegrationJobWorkerOptions
 
     public int PollIntervalSeconds { get; init; } = 10;
     public int MaxJobsPerCycle { get; init; } = 5;
+    public int MaxStorefrontProjectionRefreshMessagesPerCycle { get; init; } = 20;
     public int MaxOutboxMessagesPerCycle { get; init; } = 10;
     public int MaxWebhookDeliveriesPerCycle { get; init; } = 10;
 }

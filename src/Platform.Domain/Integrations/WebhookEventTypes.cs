@@ -8,6 +8,7 @@ public static class WebhookEventTypes
     public const string ProductUpdated = "catalog.product.updated";
     public const string PriceListCreated = "pricing.price-list.created";
     public const string PriceListUpdated = "pricing.price-list.updated";
+    public const string StorefrontProjectionRefreshRequested = "storefront.product-projection.refresh-requested";
     public const string IntegrationJobCompleted = "integration.job.completed";
     public const string IntegrationJobFailed = "integration.job.failed";
 

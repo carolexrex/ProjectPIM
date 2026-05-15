@@ -84,6 +84,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStorefrontProductApplicationService, StorefrontProductApplicationService>();
         services.AddScoped<IStorefrontProjectionBuilder, StorefrontProjectionBuilder>();
         services.AddScoped<IStorefrontProjectionRefreshService, StorefrontProjectionRefreshService>();
+        services.AddScoped<IStorefrontProjectionRefreshRequestPublisher, StorefrontProjectionRefreshRequestPublisher>();
+        services.AddScoped<IStorefrontProjectionOutboxProcessor, StorefrontProjectionOutboxProcessor>();
         services.AddScoped<ICategoryAdminApplicationService, InMemoryCategoryAdminApplicationService>();
         services.AddScoped<IProductAttributeAdminApplicationService, InMemoryProductAttributeAdminApplicationService>();
         services.AddScoped<IMediaAssetAdminApplicationService, MediaAssetAdminApplicationService>();

@@ -9,6 +9,7 @@ using Platform.Application.Catalog.Products.Queries;
 using Platform.Application.Abstractions.Persistence;
 using Platform.Application.Abstractions.Errors;
 using Platform.Application.Integrations;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Products;
 using Platform.Contracts.Common;
 using Platform.Contracts.Integrations;
@@ -27,6 +28,7 @@ public sealed class InMemoryProductAdminApplicationService : IProductAdminApplic
     private readonly IMediaAssetRepository _mediaAssetRepository;
     private readonly IProductStatusDefinitionRepository _productStatusDefinitionRepository;
     private readonly IOutboxEventPublisher _outboxEventPublisher;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public InMemoryProductAdminApplicationService(
@@ -37,6 +39,7 @@ public sealed class InMemoryProductAdminApplicationService : IProductAdminApplic
         IMediaAssetRepository mediaAssetRepository,
         IProductStatusDefinitionRepository productStatusDefinitionRepository,
         IOutboxEventPublisher outboxEventPublisher,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _productRepository = productRepository;
@@ -46,6 +49,7 @@ public sealed class InMemoryProductAdminApplicationService : IProductAdminApplic
         _mediaAssetRepository = mediaAssetRepository;
         _productStatusDefinitionRepository = productStatusDefinitionRepository;
         _outboxEventPublisher = outboxEventPublisher;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -310,18 +314,22 @@ public sealed class InMemoryProductAdminApplicationService : IProductAdminApplic
         return MapTranslation(translation);
     }
 
-    private Task PublishEventAsync(
+    private async Task PublishEventAsync(
         string eventType,
         string changeType,
         ProductDetailsDto details,
         CancellationToken cancellationToken)
     {
         var payload = new ProductWebhookEventDto(DateTime.UtcNow, changeType, details);
-        return _outboxEventPublisher.EnqueueAsync(
+        await _outboxEventPublisher.EnqueueAsync(
             eventType,
             "Product",
             details.Id,
             JsonSerializer.Serialize(payload, JsonOptions),
+            cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueProductRefreshAsync(
+            details.Id,
+            $"Product{changeType}",
             cancellationToken);
     }
 

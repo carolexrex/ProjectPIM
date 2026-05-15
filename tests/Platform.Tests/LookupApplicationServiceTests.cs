@@ -9,7 +9,9 @@ using Platform.Infrastructure.Catalog.Markets;
 using Platform.Infrastructure.Catalog.Media;
 using Platform.Infrastructure.Catalog.Products;
 using Platform.Infrastructure.Catalog.Variants;
+using Platform.Infrastructure.Integrations;
 using Platform.Infrastructure.Persistence;
+using Platform.Infrastructure.Storefront;
 
 namespace Platform.Tests;
 
@@ -85,6 +87,7 @@ public sealed class LookupApplicationServiceTests
             new InMemoryProductRepository(store),
             new InMemoryMediaAssetRepository(store),
             new InMemoryProductStatusDefinitionRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
 
         var results = await service.ListLookupsAsync(

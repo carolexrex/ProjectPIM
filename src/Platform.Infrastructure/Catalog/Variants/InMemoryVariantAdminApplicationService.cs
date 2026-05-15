@@ -5,6 +5,7 @@ using Platform.Application.Catalog.Products;
 using Platform.Application.Catalog.Variants;
 using Platform.Application.Catalog.Variants.Commands;
 using Platform.Application.Catalog.Variants.Queries;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Products;
 using Platform.Contracts.Catalog.Variants;
 using Platform.Domain.Catalog.Products;
@@ -18,6 +19,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
     private readonly IProductRepository _productRepository;
     private readonly IMediaAssetRepository _mediaAssetRepository;
     private readonly IProductStatusDefinitionRepository _productStatusDefinitionRepository;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public InMemoryVariantAdminApplicationService(
@@ -25,12 +27,14 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
         IProductRepository productRepository,
         IMediaAssetRepository mediaAssetRepository,
         IProductStatusDefinitionRepository productStatusDefinitionRepository,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _variantRepository = variantRepository;
         _productRepository = productRepository;
         _mediaAssetRepository = mediaAssetRepository;
         _productStatusDefinitionRepository = productStatusDefinitionRepository;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -116,6 +120,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
             command.AttributeValues.Select(MapAttributeValue));
 
         await _variantRepository.AddAsync(variant, cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(variant.Id, "VariantCreated", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(variant, cancellationToken);
     }
@@ -150,6 +155,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
             command.AttributeValues.Select(MapAttributeValue),
             command.RowVersion);
 
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(variant.Id, "VariantUpdated", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(variant, cancellationToken);
     }
@@ -165,6 +171,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
         }
 
         variant.AssignStatus(await ResolveStatusAsync(command.ProductStatusDefinitionId, cancellationToken));
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(variant.Id, "VariantStatusAssigned", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(variant, cancellationToken);
     }
@@ -181,6 +188,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
 
         await ValidateMediaAssetAsync(command.MediaAssetId, command.Type, cancellationToken);
         variant.UpsertMedia(command.MediaAssetId, command.Type, command.SortOrder, command.IsPrimary, command.RowVersion);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(variant.Id, "VariantMediaUpserted", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(variant, cancellationToken);
     }
@@ -196,6 +204,7 @@ public sealed class InMemoryVariantAdminApplicationService : IVariantAdminApplic
         }
 
         variant.RemoveMedia(command.VariantMediaId, command.RowVersion);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(variant.Id, "VariantMediaRemoved", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(variant, cancellationToken);
     }
