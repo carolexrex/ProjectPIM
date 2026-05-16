@@ -10,6 +10,7 @@ public interface ICategoryRepository
     Task<IReadOnlyList<Category>> GetByIdsAsync(IReadOnlyCollection<Guid> categoryIds, CancellationToken cancellationToken);
     Task<Category?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<Category>> ListActiveAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<Guid>> ListSubtreeIdsAsync(Guid categoryId, CancellationToken cancellationToken);
     Task<Category?> GetBySlugAsync(string slug, CancellationToken cancellationToken);
     Task AddAsync(Category category, CancellationToken cancellationToken);
 }

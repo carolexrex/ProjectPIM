@@ -99,6 +99,21 @@ public sealed class EfProductRepository : IProductRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListIdsByCategoryIdsAsync(IReadOnlyCollection<Guid> categoryIds, CancellationToken cancellationToken)
+    {
+        if (categoryIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.Products
+            .AsNoTracking()
+            .Where(product => product.CategoryAssignments.Any(category => categoryIds.Contains(category.CategoryId)))
+            .OrderBy(product => product.ProductNumber)
+            .Select(product => product.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Product>> GetLookupByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
     {
         if (productIds.Count == 0)

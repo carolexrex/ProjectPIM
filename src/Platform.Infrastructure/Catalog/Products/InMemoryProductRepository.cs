@@ -100,6 +100,25 @@ public sealed class InMemoryProductRepository : IProductRepository
         return Task.FromResult(ids);
     }
 
+    public Task<IReadOnlyList<Guid>> ListIdsByCategoryIdsAsync(IReadOnlyCollection<Guid> categoryIds, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (categoryIds.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<Guid>>([]);
+        }
+
+        var categoryIdSet = categoryIds.ToHashSet();
+        IReadOnlyList<Guid> ids = _store.Products.Values
+            .Where(product => product.CategoryAssignments.Any(category => categoryIdSet.Contains(category.CategoryId)))
+            .OrderBy(product => product.ProductNumber, StringComparer.OrdinalIgnoreCase)
+            .Select(product => product.Id)
+            .ToList();
+
+        return Task.FromResult(ids);
+    }
+
     public Task<IReadOnlyList<Product>> GetLookupByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

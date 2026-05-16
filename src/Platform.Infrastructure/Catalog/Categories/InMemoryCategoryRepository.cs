@@ -73,6 +73,25 @@ public sealed class InMemoryCategoryRepository : ICategoryRepository
         return Task.FromResult(categories);
     }
 
+    public Task<IReadOnlyList<Guid>> ListSubtreeIdsAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var ids = new List<Guid> { categoryId };
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var currentId = ids[i];
+            var childIds = _store.Categories.Values
+                .Where(x => x.ParentCategoryId == currentId)
+                .Select(x => x.Id)
+                .Where(id => !ids.Contains(id))
+                .ToList();
+            ids.AddRange(childIds);
+        }
+
+        return Task.FromResult<IReadOnlyList<Guid>>(ids);
+    }
+
     public Task<Category?> GetBySlugAsync(string slug, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

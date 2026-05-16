@@ -3,6 +3,8 @@ using Platform.Application.Abstractions.Persistence;
 using Platform.Application.Catalog.Categories;
 using Platform.Application.Catalog.Categories.Commands;
 using Platform.Application.Catalog.Categories.Queries;
+using Platform.Application.Catalog.Products;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Categories;
 using Platform.Contracts.Common;
 using Platform.Domain.Catalog.Categories;
@@ -12,11 +14,19 @@ namespace Platform.Infrastructure.Catalog.Categories;
 public sealed class InMemoryCategoryAdminApplicationService : ICategoryAdminApplicationService
 {
     private readonly ICategoryRepository _categoryRepository;
+    private readonly IProductRepository _productRepository;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
-    public InMemoryCategoryAdminApplicationService(ICategoryRepository categoryRepository, IUnitOfWork unitOfWork)
+    public InMemoryCategoryAdminApplicationService(
+        ICategoryRepository categoryRepository,
+        IProductRepository productRepository,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
+        IUnitOfWork unitOfWork)
     {
         _categoryRepository = categoryRepository;
+        _productRepository = productRepository;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -59,6 +69,7 @@ public sealed class InMemoryCategoryAdminApplicationService : ICategoryAdminAppl
         await EnsureParentExistsAsync(command.ParentCategoryId, command.CategoryId, cancellationToken);
 
         category.Update(command.Code, command.ParentCategoryId, command.SortOrder, command.RowVersion);
+        await EnqueueStorefrontRefreshAsync(category.Id, "CategoryUpdated", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapDetails(category);
     }
@@ -72,6 +83,7 @@ public sealed class InMemoryCategoryAdminApplicationService : ICategoryAdminAppl
         }
 
         category.Archive();
+        await EnqueueStorefrontRefreshAsync(category.Id, "CategoryArchived", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapDetails(category);
     }
@@ -85,8 +97,19 @@ public sealed class InMemoryCategoryAdminApplicationService : ICategoryAdminAppl
         }
 
         var translation = category.UpsertTranslation(command.CultureCode, command.Name, command.Slug, command.Description);
+        await EnqueueStorefrontRefreshAsync(category.Id, "CategoryTranslationUpserted", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapTranslation(translation);
+    }
+
+    private async Task EnqueueStorefrontRefreshAsync(Guid categoryId, string reason, CancellationToken cancellationToken)
+    {
+        var categoryIds = await _categoryRepository.ListSubtreeIdsAsync(categoryId, cancellationToken);
+        var productIds = await _productRepository.ListIdsByCategoryIdsAsync(categoryIds, cancellationToken);
+        foreach (var productId in productIds)
+        {
+            await _storefrontProjectionRefreshRequestPublisher.EnqueueProductRefreshAsync(productId, reason, cancellationToken);
+        }
     }
 
     private async Task EnsureCodeIsUniqueAsync(string code, Guid? currentCategoryId, CancellationToken cancellationToken)

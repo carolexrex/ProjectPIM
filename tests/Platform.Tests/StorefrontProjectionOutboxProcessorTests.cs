@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Catalog.Brands.Commands;
+using Platform.Application.Catalog.Categories.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Storefront;
 using Platform.Domain.Integrations;
@@ -114,6 +115,45 @@ public sealed class StorefrontProjectionOutboxProcessorTests
     }
 
     [Fact]
+    public async Task ExecutePendingAsync_RefreshesProjectionForCategorySubtreeFanOut()
+    {
+        var store = new InMemoryCatalogStore();
+        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
+        var refreshService = CreateRefreshService(store, projectionRepository);
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var parentCategoryId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+        await refreshService.RefreshProductAsync(productId, CancellationToken.None);
+
+        var originalProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Contains("tools", originalProjection.CategoryFilterSlugsJson);
+
+        var categoryService = CreateCategoryService(store);
+        await categoryService.UpsertTranslationAsync(
+            new UpsertCategoryTranslationCommand(
+                parentCategoryId,
+                "sv-SE",
+                "Verktyg",
+                "verktyg",
+                "Svensk beskrivning."),
+            CancellationToken.None);
+
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        var refreshedProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Contains("verktyg", refreshedProjection.CategoryFilterSlugsJson);
+    }
+
+    [Fact]
     public async Task WebhookOutboxExecution_IgnoresInternalRefreshRequests()
     {
         var store = new InMemoryCatalogStore();
@@ -199,6 +239,15 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryBrandRepository(store),
             new InMemoryMediaAssetRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static InMemoryCategoryAdminApplicationService CreateCategoryService(InMemoryCatalogStore store)
+    {
+        return new InMemoryCategoryAdminApplicationService(
+            new InMemoryCategoryRepository(store),
             new InMemoryProductRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());

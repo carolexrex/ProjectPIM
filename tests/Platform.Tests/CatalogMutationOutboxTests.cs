@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Platform.Application.Catalog.Brands.Commands;
+using Platform.Application.Catalog.Categories.Commands;
 using Platform.Application.Catalog.Inventory.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Catalog.Products.Commands;
@@ -138,6 +139,23 @@ public sealed class CatalogMutationOutboxTests
     }
 
     [Fact]
+    public async Task CategoryTranslationUpsert_EnqueuesStorefrontProjectionRefreshRequest()
+    {
+        var store = new InMemoryCatalogStore();
+        var service = CreateCategoryService(store);
+        var categoryId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+
+        var translation = await service.UpsertTranslationAsync(
+            new UpsertCategoryTranslationCommand(categoryId, "sv-SE", "Verktyg", "verktyg", "Svensk beskrivning."),
+            CancellationToken.None);
+
+        Assert.NotNull(translation);
+
+        var message = Assert.Single(store.OutboxMessages.Values);
+        Assert.Equal(WebhookEventTypes.StorefrontProjectionRefreshRequested, message.EventType);
+    }
+
+    [Fact]
     public async Task PriceListCreate_EnqueuesPriceListCreatedEvent()
     {
         var store = new InMemoryCatalogStore();
@@ -234,6 +252,15 @@ public sealed class CatalogMutationOutboxTests
             new InMemoryMediaAssetRepository(store),
             new InMemoryProductStatusDefinitionRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static InMemoryCategoryAdminApplicationService CreateCategoryService(InMemoryCatalogStore store)
+    {
+        return new InMemoryCategoryAdminApplicationService(
+            new InMemoryCategoryRepository(store),
+            new InMemoryProductRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }

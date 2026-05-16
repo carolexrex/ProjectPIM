@@ -73,6 +73,28 @@ public sealed class EfCategoryRepository : ICategoryRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListSubtreeIdsAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        var categories = await _dbContext.Categories
+            .AsNoTracking()
+            .Select(x => new { x.Id, x.ParentCategoryId })
+            .ToListAsync(cancellationToken);
+
+        var ids = new List<Guid> { categoryId };
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var currentId = ids[i];
+            var childIds = categories
+                .Where(x => x.ParentCategoryId == currentId)
+                .Select(x => x.Id)
+                .Where(id => !ids.Contains(id))
+                .ToList();
+            ids.AddRange(childIds);
+        }
+
+        return ids;
+    }
+
     public async Task<Category?> GetBySlugAsync(string slug, CancellationToken cancellationToken)
     {
         return await _dbContext.Categories

@@ -9,6 +9,7 @@ public interface IProductRepository
     Task<IReadOnlyList<Product>> ListForExportAsync(string? search, string? status, string? productStatusCode, Guid? brandId, bool? hasVariants, CancellationToken cancellationToken);
     Task<IReadOnlyList<Product>> ListLookupsAsync(ListProductLookupsQuery query, CancellationToken cancellationToken);
     Task<IReadOnlyList<Guid>> ListIdsByBrandIdAsync(Guid brandId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Guid>> ListIdsByCategoryIdsAsync(IReadOnlyCollection<Guid> categoryIds, CancellationToken cancellationToken);
     Task<IReadOnlyList<Product>> GetLookupByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken);
     Task<Product?> GetByIdAsync(Guid productId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Product>> GetByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken);
