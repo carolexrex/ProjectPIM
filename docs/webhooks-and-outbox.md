@@ -17,6 +17,14 @@ The worker currently delivers webhook events for:
 
 The `updated` events intentionally cover sub-mutations on the aggregate, not only the top-level update method. For example, translation, relation, media, market-assignment, and price-entry changes are emitted as `updated` events with a more specific `changeType` in the payload.
 
+## Internal Outbox Messages
+
+The outbox table is also used for internal worker scheduling messages, currently:
+
+- `storefront.product-projection.refresh-requested`
+
+Internal messages are not webhook events. The storefront projection processor claims only refresh-request messages and marks them published after the local projection refresh has completed. Webhook fanout claims only externally supported webhook event types, so internal refresh requests cannot be marked published by webhook delivery processing.
+
 ## Delivery Lifecycle
 
 Webhook delivery records move through these states:
@@ -89,5 +97,6 @@ Each payload includes:
 
 - The outbox message and aggregate mutation are written in the same unit of work.
 - Worker delivery is intentionally decoupled from the write path.
+- Internal outbox processors and webhook fanout use event-type-specific reads; avoid broad unpublished-message polling in new worker paths.
 - Admin delivery detail views are the primary operational surface today.
 - Replay is meant for controlled recovery, not bulk redrive automation.

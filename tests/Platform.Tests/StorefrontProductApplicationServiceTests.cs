@@ -22,7 +22,7 @@ public sealed class StorefrontProductApplicationServiceTests
     public async Task ListAsync_ReturnsPagedSummariesWithResolvedCommerceData()
     {
         var store = new InMemoryCatalogStore();
-        var service = CreateService(store);
+        var service = await CreateServiceAsync(store);
 
         var result = await service.ListAsync(
             new GetStorefrontProductsQuery(
@@ -66,7 +66,7 @@ public sealed class StorefrontProductApplicationServiceTests
     public async Task GetBySlugAsync_ReturnsDetailsWithVariantDiagnostics()
     {
         var store = new InMemoryCatalogStore();
-        var service = CreateService(store);
+        var service = await CreateServiceAsync(store);
 
         var result = await service.GetBySlugAsync(
             new GetStorefrontProductBySlugQuery(
@@ -105,7 +105,7 @@ public sealed class StorefrontProductApplicationServiceTests
     public async Task GetByProductNumberAsync_ReturnsDetailsForStableCommerceIdentifier()
     {
         var store = new InMemoryCatalogStore();
-        var service = CreateService(store);
+        var service = await CreateServiceAsync(store);
 
         var result = await service.GetByProductNumberAsync(
             new GetStorefrontProductByProductNumberQuery(
@@ -167,7 +167,7 @@ public sealed class StorefrontProductApplicationServiceTests
         var channel = store.Channels[Guid.Parse("63000000-0000-0000-0000-000000000001")];
         channel.UpsertMarketAssignment(noMarket.Id, channel.RowVersion);
 
-        var service = CreateService(store);
+        var service = await CreateServiceAsync(store);
 
         var result = await service.GetBySlugAsync(
             new GetStorefrontProductBySlugQuery(
@@ -183,13 +183,58 @@ public sealed class StorefrontProductApplicationServiceTests
         Assert.Equal("Product", result.ResourceName);
     }
 
+    [Fact]
+    public async Task GetBySlugAsync_ReturnsNotFoundWhenProjectionIsMissing()
+    {
+        var store = new InMemoryCatalogStore();
+        var service = CreateService(store);
+
+        var result = await service.GetBySlugAsync(
+            new GetStorefrontProductBySlugQuery(
+                "example-drill",
+                "WEB-SE",
+                "SE",
+                "sv-SE",
+                "SEK",
+                null),
+            CancellationToken.None);
+
+        Assert.Equal(StorefrontContextResolutionStatus.NotFound, result.Status);
+        Assert.Empty(store.StorefrontProductProjections);
+    }
+
+    private static async Task<StorefrontProductApplicationService> CreateServiceAsync(InMemoryCatalogStore store)
+    {
+        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
+        var refreshService = CreateRefreshService(store, projectionRepository);
+        await refreshService.RebuildAllAsync(CancellationToken.None);
+        return CreateService(store, projectionRepository);
+    }
+
     private static StorefrontProductApplicationService CreateService(InMemoryCatalogStore store)
+    {
+        return CreateService(store, new InMemoryStorefrontProductProjectionRepository(store));
+    }
+
+    private static StorefrontProductApplicationService CreateService(
+        InMemoryCatalogStore store,
+        IStorefrontProductProjectionRepository projectionRepository)
     {
         var contextService = new StorefrontContextApplicationService(
             new InMemoryChannelRepository(store),
             new InMemoryMarketRepository(store));
-        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
-        var refreshService = new StorefrontProjectionRefreshService(
+        return new StorefrontProductApplicationService(
+            new InMemoryBrandRepository(store),
+            new InMemoryCategoryRepository(store),
+            contextService,
+            projectionRepository);
+    }
+
+    private static StorefrontProjectionRefreshService CreateRefreshService(
+        InMemoryCatalogStore store,
+        IStorefrontProductProjectionRepository projectionRepository)
+    {
+        return new StorefrontProjectionRefreshService(
             new StorefrontProjectionBuilder(
                 new InMemoryBrandRepository(store),
                 new InMemoryCategoryRepository(store),
@@ -204,12 +249,5 @@ public sealed class StorefrontProductApplicationServiceTests
             projectionRepository,
             new InMemoryProductRepository(store),
             new InMemoryUnitOfWork());
-
-        return new StorefrontProductApplicationService(
-            new InMemoryBrandRepository(store),
-            new InMemoryCategoryRepository(store),
-            contextService,
-            projectionRepository,
-            refreshService);
     }
 }

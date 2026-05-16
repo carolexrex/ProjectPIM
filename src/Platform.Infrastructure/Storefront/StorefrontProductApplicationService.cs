@@ -16,20 +16,17 @@ public sealed class StorefrontProductApplicationService : IStorefrontProductAppl
     private readonly ICategoryRepository _categoryRepository;
     private readonly IStorefrontContextApplicationService _contextService;
     private readonly IStorefrontProductProjectionRepository _projectionRepository;
-    private readonly IStorefrontProjectionRefreshService _projectionRefreshService;
 
     public StorefrontProductApplicationService(
         IBrandRepository brandRepository,
         ICategoryRepository categoryRepository,
         IStorefrontContextApplicationService contextService,
-        IStorefrontProductProjectionRepository projectionRepository,
-        IStorefrontProjectionRefreshService projectionRefreshService)
+        IStorefrontProductProjectionRepository projectionRepository)
     {
         _brandRepository = brandRepository;
         _categoryRepository = categoryRepository;
         _contextService = contextService;
         _projectionRepository = projectionRepository;
-        _projectionRefreshService = projectionRefreshService;
     }
 
     public async Task<StorefrontProductListResult> ListAsync(GetStorefrontProductsQuery query, CancellationToken cancellationToken)
@@ -188,18 +185,7 @@ public sealed class StorefrontProductApplicationService : IStorefrontProductAppl
             context.ActiveCurrencyCode,
             cancellationToken);
 
-        if (projections.Count > 0)
-        {
-            return projections;
-        }
-
-        await _projectionRefreshService.RebuildAllAsync(cancellationToken);
-
-        return await _projectionRepository.ListByContextAsync(
-            context.Market.Code,
-            context.ActiveCultureCode,
-            context.ActiveCurrencyCode,
-            cancellationToken);
+        return projections;
     }
 
     private async Task<StorefrontProductProjection?> LoadBySlugAsync(
@@ -214,19 +200,7 @@ public sealed class StorefrontProductApplicationService : IStorefrontProductAppl
             slug,
             cancellationToken);
 
-        if (projection is not null)
-        {
-            return projection;
-        }
-
-        await _projectionRefreshService.RebuildAllAsync(cancellationToken);
-
-        return await _projectionRepository.GetBySlugAsync(
-            context.Market.Code,
-            context.ActiveCultureCode,
-            context.ActiveCurrencyCode,
-            slug,
-            cancellationToken);
+        return projection;
     }
 
     private async Task<StorefrontProductProjection?> LoadByProductNumberAsync(
@@ -241,19 +215,7 @@ public sealed class StorefrontProductApplicationService : IStorefrontProductAppl
             productNumber,
             cancellationToken);
 
-        if (projection is not null)
-        {
-            return projection;
-        }
-
-        await _projectionRefreshService.RebuildAllAsync(cancellationToken);
-
-        return await _projectionRepository.GetByProductNumberAsync(
-            context.Market.Code,
-            context.ActiveCultureCode,
-            context.ActiveCurrencyCode,
-            productNumber,
-            cancellationToken);
+        return projection;
     }
 
     private async Task<StorefrontProductFacetsDto> BuildFacetsAsync(

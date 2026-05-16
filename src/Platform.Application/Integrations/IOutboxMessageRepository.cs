@@ -4,7 +4,7 @@ namespace Platform.Application.Integrations;
 
 public interface IOutboxMessageRepository
 {
-    Task<OutboxMessage?> GetNextUnpublishedAsync(CancellationToken cancellationToken);
-    Task<IReadOnlyList<OutboxMessage>> ListUnpublishedAsync(int maxMessages, CancellationToken cancellationToken);
+    Task<OutboxMessage?> GetNextUnpublishedByEventTypeAsync(string eventType, CancellationToken cancellationToken);
+    Task<OutboxMessage?> GetNextUnpublishedByEventTypesAsync(IReadOnlySet<string> eventTypes, CancellationToken cancellationToken);
     Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken);
 }

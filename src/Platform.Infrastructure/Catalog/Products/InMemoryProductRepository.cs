@@ -87,6 +87,19 @@ public sealed class InMemoryProductRepository : IProductRepository
         return Task.FromResult(items);
     }
 
+    public Task<IReadOnlyList<Guid>> ListIdsByBrandIdAsync(Guid brandId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IReadOnlyList<Guid> ids = _store.Products.Values
+            .Where(product => product.BrandId == brandId)
+            .OrderBy(product => product.ProductNumber, StringComparer.OrdinalIgnoreCase)
+            .Select(product => product.Id)
+            .ToList();
+
+        return Task.FromResult(ids);
+    }
+
     public Task<IReadOnlyList<Product>> GetLookupByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

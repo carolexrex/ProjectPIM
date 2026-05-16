@@ -5,7 +5,9 @@ using Platform.Application.Catalog.Brands;
 using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Brands.Queries;
 using Platform.Application.Catalog.Media;
+using Platform.Application.Catalog.Products;
 using Platform.Application.Integrations;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Brands;
 using Platform.Contracts.Common;
 using Platform.Contracts.Integrations;
@@ -20,17 +22,23 @@ public sealed class BrandAdminApplicationService : IBrandAdminApplicationService
     private readonly IBrandRepository _brandRepository;
     private readonly IMediaAssetRepository _mediaAssetRepository;
     private readonly IOutboxEventPublisher _outboxEventPublisher;
+    private readonly IProductRepository _productRepository;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public BrandAdminApplicationService(
         IBrandRepository brandRepository,
         IMediaAssetRepository mediaAssetRepository,
         IOutboxEventPublisher outboxEventPublisher,
+        IProductRepository productRepository,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _brandRepository = brandRepository;
         _mediaAssetRepository = mediaAssetRepository;
         _outboxEventPublisher = outboxEventPublisher;
+        _productRepository = productRepository;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -93,6 +101,7 @@ public sealed class BrandAdminApplicationService : IBrandAdminApplicationService
         var logo = await ResolveLogoAsync(brand.LogoMediaAssetId, cancellationToken);
         var details = MapDetails(brand, logo);
         await PublishEventAsync(WebhookEventTypes.BrandUpdated, "Updated", details, cancellationToken);
+        await EnqueueStorefrontRefreshAsync(brand.Id, "BrandUpdated", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -109,6 +118,7 @@ public sealed class BrandAdminApplicationService : IBrandAdminApplicationService
         var logo = await ResolveLogoAsync(brand.LogoMediaAssetId, cancellationToken);
         var details = MapDetails(brand, logo);
         await PublishEventAsync(WebhookEventTypes.BrandUpdated, "Archived", details, cancellationToken);
+        await EnqueueStorefrontRefreshAsync(brand.Id, "BrandArchived", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return details;
     }
@@ -125,6 +135,7 @@ public sealed class BrandAdminApplicationService : IBrandAdminApplicationService
         var logo = await ResolveLogoAsync(brand.LogoMediaAssetId, cancellationToken);
         var details = MapDetails(brand, logo);
         await PublishEventAsync(WebhookEventTypes.BrandUpdated, "TranslationUpserted", details, cancellationToken);
+        await EnqueueStorefrontRefreshAsync(brand.Id, "BrandTranslationUpserted", cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapTranslation(translation);
     }
@@ -142,6 +153,15 @@ public sealed class BrandAdminApplicationService : IBrandAdminApplicationService
             details.Id,
             JsonSerializer.Serialize(payload, JsonOptions),
             cancellationToken);
+    }
+
+    private async Task EnqueueStorefrontRefreshAsync(Guid brandId, string reason, CancellationToken cancellationToken)
+    {
+        var productIds = await _productRepository.ListIdsByBrandIdAsync(brandId, cancellationToken);
+        foreach (var productId in productIds)
+        {
+            await _storefrontProjectionRefreshRequestPublisher.EnqueueProductRefreshAsync(productId, reason, cancellationToken);
+        }
     }
 
     private async Task EnsureCodeIsUniqueAsync(string code, Guid? currentBrandId, CancellationToken cancellationToken)

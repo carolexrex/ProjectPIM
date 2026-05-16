@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Storefront;
 using Platform.Domain.Integrations;
@@ -58,15 +59,106 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(1, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        var refreshMessage = Assert.Single(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
+        Assert.True(refreshMessage.IsPublished);
+        var refreshedProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(
+            Guid.Parse("50000000-0000-0000-0000-000000000001"),
+            CancellationToken.None));
+        Assert.Equal(1299m, refreshedProjection.PriceAmount);
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_RefreshesProjectionForBrandUpdateFanOut()
+    {
+        var store = new InMemoryCatalogStore();
+        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
+        var refreshService = CreateRefreshService(store, projectionRepository);
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var brandId = Guid.Parse("61000000-0000-0000-0000-000000000001");
+        await refreshService.RefreshProductAsync(productId, CancellationToken.None);
+
+        var originalProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Equal("Acme Tools", originalProjection.BrandName);
+
+        var brand = store.Brands[brandId];
+        var brandService = CreateBrandService(store);
+        await brandService.UpsertTranslationAsync(
+            new UpsertBrandTranslationCommand(
+                brand.Id,
+                "sv-SE",
+                "Acme Verktyg",
+                "acme-verktyg",
+                "Svensk beskrivning."),
+            CancellationToken.None);
+
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
         var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
 
         Assert.Equal(1, processed);
-        var refreshedProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(
+        var refreshedProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Equal("Acme Verktyg", refreshedProjection.BrandName);
+    }
+
+    [Fact]
+    public async Task WebhookOutboxExecution_IgnoresInternalRefreshRequests()
+    {
+        var store = new InMemoryCatalogStore();
+        var now = DateTime.UtcNow;
+        var subscription = new WebhookSubscription(
+            Guid.NewGuid(),
+            "Product updates",
+            "https://example.test/hooks/products",
+            "secret",
+            [WebhookEventTypes.ProductUpdated],
+            true,
+            now);
+        store.WebhookSubscriptions[subscription.Id] = subscription;
+
+        var refreshMessage = new OutboxMessage(
+            Guid.NewGuid(),
+            WebhookEventTypes.StorefrontProjectionRefreshRequested,
+            "StorefrontProductProjection",
             Guid.Parse("50000000-0000-0000-0000-000000000001"),
-            CancellationToken.None));
-        Assert.Equal(1299m, refreshedProjection.PriceAmount);
+            "{\"productIds\":[\"50000000-0000-0000-0000-000000000001\"],\"variantIds\":[],\"reason\":\"Test\",\"requestedAtUtc\":\"2026-05-16T00:00:00Z\"}",
+            now);
+        var productMessage = new OutboxMessage(
+            Guid.NewGuid(),
+            WebhookEventTypes.ProductUpdated,
+            "Product",
+            Guid.Parse("50000000-0000-0000-0000-000000000001"),
+            "{\"event\":\"product.updated\"}",
+            now.AddSeconds(1));
+        store.OutboxMessages[refreshMessage.Id] = refreshMessage;
+        store.OutboxMessages[productMessage.Id] = productMessage;
+
+        var service = new WebhookOutboxExecutionService(
+            new InMemoryOutboxMessageRepository(store),
+            new InMemoryWebhookSubscriptionRepository(store),
+            new InMemoryWebhookDeliveryRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<WebhookOutboxExecutionService>.Instance);
+
+        var published = await service.ExecutePendingAsync(1, CancellationToken.None);
+
+        Assert.Equal(1, published);
+        Assert.False(refreshMessage.IsPublished);
+        Assert.True(productMessage.IsPublished);
+        var delivery = Assert.Single(store.WebhookDeliveries.Values);
+        Assert.Equal(WebhookEventTypes.ProductUpdated, delivery.EventType);
     }
 
     private static StorefrontProjectionRefreshService CreateRefreshService(
@@ -97,6 +189,17 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryMarketRepository(store),
             new InMemoryVariantRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static BrandAdminApplicationService CreateBrandService(InMemoryCatalogStore store)
+    {
+        return new BrandAdminApplicationService(
+            new InMemoryBrandRepository(store),
+            new InMemoryMediaAssetRepository(store),
+            new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new InMemoryProductRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }

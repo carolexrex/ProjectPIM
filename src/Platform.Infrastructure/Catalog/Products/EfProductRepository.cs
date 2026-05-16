@@ -89,6 +89,16 @@ public sealed class EfProductRepository : IProductRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> ListIdsByBrandIdAsync(Guid brandId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Products
+            .AsNoTracking()
+            .Where(product => product.BrandId == brandId)
+            .OrderBy(product => product.ProductNumber)
+            .Select(product => product.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Product>> GetLookupByIdsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
     {
         if (productIds.Count == 0)

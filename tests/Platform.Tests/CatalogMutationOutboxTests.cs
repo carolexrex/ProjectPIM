@@ -58,7 +58,8 @@ public sealed class CatalogMutationOutboxTests
 
         Assert.NotNull(translation);
 
-        var message = Assert.Single(store.OutboxMessages.Values);
+        var message = Assert.Single(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.BrandUpdated);
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
         Assert.Equal(WebhookEventTypes.BrandUpdated, message.EventType);
 
         var payload = Deserialize<BrandWebhookEventDto>(message.PayloadJson);
@@ -218,6 +219,8 @@ public sealed class CatalogMutationOutboxTests
             new InMemoryBrandRepository(store),
             new InMemoryMediaAssetRepository(store),
             new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store)),
+            new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }
 

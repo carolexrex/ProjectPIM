@@ -13,12 +13,12 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
         _store = store;
     }
 
-    public Task<OutboxMessage?> GetNextUnpublishedAsync(CancellationToken cancellationToken)
+    public Task<OutboxMessage?> GetNextUnpublishedByEventTypeAsync(string eventType, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var message = _store.OutboxMessages.Values
-            .Where(x => !x.IsPublished)
+            .Where(x => !x.IsPublished && string.Equals(x.EventType, eventType, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.OccurredAtUtc)
             .ThenBy(x => x.Id)
             .FirstOrDefault();
@@ -26,23 +26,22 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
         return Task.FromResult(message);
     }
 
-    public Task<IReadOnlyList<OutboxMessage>> ListUnpublishedAsync(int maxMessages, CancellationToken cancellationToken)
+    public Task<OutboxMessage?> GetNextUnpublishedByEventTypesAsync(IReadOnlySet<string> eventTypes, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (maxMessages <= 0)
+        if (eventTypes.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<OutboxMessage>>([]);
+            return Task.FromResult<OutboxMessage?>(null);
         }
 
-        IReadOnlyList<OutboxMessage> messages = _store.OutboxMessages.Values
-            .Where(x => !x.IsPublished)
+        var message = _store.OutboxMessages.Values
+            .Where(x => !x.IsPublished && eventTypes.Contains(x.EventType))
             .OrderBy(x => x.OccurredAtUtc)
             .ThenBy(x => x.Id)
-            .Take(maxMessages)
-            .ToList();
+            .FirstOrDefault();
 
-        return Task.FromResult(messages);
+        return Task.FromResult(message);
     }
 
     public Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)

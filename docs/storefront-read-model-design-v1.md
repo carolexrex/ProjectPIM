@@ -556,9 +556,11 @@ Exit:
 Current implementation status:
 
 - partially implemented
-- direct product, variant, price-list entry, and inventory-balance mutations now enqueue internal storefront projection refresh requests
+- direct product, variant, brand, price-list entry, and inventory-balance mutations now enqueue internal storefront projection refresh requests
+- storefront refresh requests are processed as internal outbox messages with event-type-specific polling, separate from external webhook fanout
+- storefront product reads do not rebuild projections on read misses; rebuilds and incremental refreshes are worker/admin responsibilities
 - `Platform.Worker` processes refresh requests before publishing outbox messages, resolving affected variants back to product projection rows
-- broader dependency fan-out is still pending for brand, category, market assignment, and inventory-location market assignment changes
+- broader dependency fan-out is still pending for category, market assignment, and inventory-location market assignment changes
 
 ### Phase 4: Search Refinement
 

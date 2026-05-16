@@ -319,7 +319,8 @@ Completed In Current Slice:
 - `GET /api/storefront/products/by-number/{productNumber}` resolves product detail through a stable commerce identifier for CMS/integration consumers
 - `StorefrontProductProjection` foundation is implemented with projection entity, repository, builder, refresh service, EF configuration, and migration `AddStorefrontProductProjection`
 - admin API and worker now support a real storefront projection rebuild job, and storefront product browse/detail read through the projection repository
-- direct product, variant, price-list entry, and inventory-balance mutations now enqueue targeted storefront projection refresh requests processed by the worker
+- direct product, variant, brand, price-list entry, and inventory-balance mutations now enqueue targeted storefront projection refresh requests processed by the worker
+- storefront projection refresh requests are internal outbox messages processed separately from external webhook fanout, and storefront reads no longer perform full rebuilds on read misses
 - storefront context resolution supports explicit channel/market input and host-name-based channel lookup
 - product browse now exposes supported sort values plus category/brand facet metadata for storefront consumers
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior
@@ -366,6 +367,18 @@ Completed In Current Slice:
 3. custom fields and AI workflow
 4. storefront read model and search
 5. agentic shopping refinement on top of storefront and commerce flows
+
+## Integration Job Execution Refactor Plan
+
+The current integration job execution service should be split before adding more job types.
+
+Recommended shape:
+
+1. Keep `IntegrationJobExecutionService` as the orchestrator that claims runnable jobs, starts them, dispatches to a handler, records completion/failure, and publishes job lifecycle events.
+2. Introduce one handler per job type or job family: brand export, brand import, product export, product import, and storefront projection rebuild.
+3. Move import validation and row mapping into handler-local collaborators where it materially reduces constructor size or makes tests narrower.
+4. Add a registry keyed by `IntegrationJobTypes` so unsupported job types fail in one place.
+5. Preserve the existing job state transitions and outbox publication tests during the split, then add focused handler tests for import/export edge cases.
 
 ## Modeling Notes
 

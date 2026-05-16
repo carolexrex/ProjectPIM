@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Platform.Application.Abstractions.Persistence;
 using Platform.Application.Catalog.Variants;
 using Platform.Application.Integrations;
 using Platform.Application.Storefront;
+using Platform.Domain.Common;
 using Platform.Domain.Integrations;
 
 namespace Platform.Infrastructure.Storefront;
@@ -14,17 +16,20 @@ public sealed class StorefrontProjectionOutboxProcessor : IStorefrontProjectionO
     private readonly IOutboxMessageRepository _outboxMessageRepository;
     private readonly IStorefrontProjectionRefreshService _refreshService;
     private readonly IVariantRepository _variantRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<StorefrontProjectionOutboxProcessor> _logger;
 
     public StorefrontProjectionOutboxProcessor(
         IOutboxMessageRepository outboxMessageRepository,
         IStorefrontProjectionRefreshService refreshService,
         IVariantRepository variantRepository,
+        IUnitOfWork unitOfWork,
         ILogger<StorefrontProjectionOutboxProcessor> logger)
     {
         _outboxMessageRepository = outboxMessageRepository;
         _refreshService = refreshService;
         _variantRepository = variantRepository;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -35,22 +40,36 @@ public sealed class StorefrontProjectionOutboxProcessor : IStorefrontProjectionO
             return 0;
         }
 
-        var messages = await _outboxMessageRepository.ListUnpublishedAsync(maxMessages, cancellationToken);
         var processed = 0;
 
-        foreach (var message in messages.Where(IsRefreshRequest))
+        for (var i = 0; i < maxMessages; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var productIds = await ResolveProductIdsAsync(message, cancellationToken);
-            if (productIds.Count == 0)
+            var message = await _outboxMessageRepository.GetNextUnpublishedByEventTypeAsync(
+                WebhookEventTypes.StorefrontProjectionRefreshRequested,
+                cancellationToken);
+            if (message is null)
             {
-                processed++;
-                continue;
+                break;
             }
 
-            await _refreshService.RefreshProductsAsync(productIds, cancellationToken);
-            processed++;
+            try
+            {
+                var productIds = await ResolveProductIdsAsync(message, cancellationToken);
+                if (productIds.Count > 0)
+                {
+                    await _refreshService.RefreshProductsAsync(productIds, cancellationToken);
+                }
+
+                message.MarkPublished(message.RowVersion);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                processed++;
+            }
+            catch (ConcurrencyException)
+            {
+                continue;
+            }
         }
 
         return processed;
@@ -96,13 +115,5 @@ public sealed class StorefrontProjectionOutboxProcessor : IStorefrontProjectionO
             .Where(x => x != Guid.Empty)
             .Distinct()
             .ToList();
-    }
-
-    private static bool IsRefreshRequest(OutboxMessage message)
-    {
-        return string.Equals(
-            message.EventType,
-            WebhookEventTypes.StorefrontProjectionRefreshRequested,
-            StringComparison.OrdinalIgnoreCase);
     }
 }

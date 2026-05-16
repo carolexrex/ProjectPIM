@@ -3,6 +3,7 @@
 `Platform.Worker` runs background polling loops for:
 
 - integration jobs
+- storefront projection refresh requests
 - outbox fanout
 - webhook delivery execution
 
@@ -16,6 +17,7 @@ Worker polling settings:
     "IntegrationJobs": {
       "PollIntervalSeconds": 5,
       "MaxJobsPerCycle": 10,
+      "MaxStorefrontProjectionRefreshMessagesPerCycle": 20,
       "MaxOutboxMessagesPerCycle": 20,
       "MaxWebhookDeliveriesPerCycle": 20
     }
@@ -37,4 +39,5 @@ Webhook replay settings shared with the admin API:
 ## Notes
 
 - The worker does not perform webhook replay inline. Replay only reschedules a delivery; the worker executes it when `NextAttemptAtUtc` becomes runnable.
+- Storefront projection refresh requests are processed before webhook outbox fanout so webhook consumers see events after the local projection has been refreshed.
 - Catalog persistence and webhook/outbox runtime options are registered through `Platform.Infrastructure`.

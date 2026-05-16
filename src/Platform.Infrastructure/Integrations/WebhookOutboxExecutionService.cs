@@ -40,7 +40,9 @@ public sealed class WebhookOutboxExecutionService : IWebhookOutboxExecutionServi
         for (var i = 0; i < maxMessages; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var message = await _outboxMessageRepository.GetNextUnpublishedAsync(cancellationToken);
+            var message = await _outboxMessageRepository.GetNextUnpublishedByEventTypesAsync(
+                WebhookEventTypes.All,
+                cancellationToken);
             if (message is null)
             {
                 break;
