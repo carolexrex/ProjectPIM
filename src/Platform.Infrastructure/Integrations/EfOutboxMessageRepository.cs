@@ -14,15 +14,6 @@ public sealed class EfOutboxMessageRepository : IOutboxMessageRepository
         _dbContext = dbContext;
     }
 
-    public async Task<OutboxMessage?> GetNextUnpublishedByEventTypeAsync(string eventType, CancellationToken cancellationToken)
-    {
-        return await _dbContext.OutboxMessages
-            .Where(x => !x.PublishedAtUtc.HasValue && x.EventType == eventType)
-            .OrderBy(x => x.OccurredAtUtc)
-            .ThenBy(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
     public async Task<OutboxMessage?> GetNextUnpublishedByEventTypesAsync(IReadOnlySet<string> eventTypes, CancellationToken cancellationToken)
     {
         if (eventTypes.Count == 0)
@@ -35,6 +26,21 @@ public sealed class EfOutboxMessageRepository : IOutboxMessageRepository
             .OrderBy(x => x.OccurredAtUtc)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OutboxMessage>> ListUnpublishedByEventTypeAsync(string eventType, int maxMessages, CancellationToken cancellationToken)
+    {
+        if (maxMessages <= 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.OutboxMessages
+            .Where(x => !x.PublishedAtUtc.HasValue && x.EventType == eventType)
+            .OrderBy(x => x.OccurredAtUtc)
+            .ThenBy(x => x.Id)
+            .Take(maxMessages)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)

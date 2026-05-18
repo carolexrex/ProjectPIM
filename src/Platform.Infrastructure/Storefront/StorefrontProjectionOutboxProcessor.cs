@@ -40,37 +40,52 @@ public sealed class StorefrontProjectionOutboxProcessor : IStorefrontProjectionO
             return 0;
         }
 
-        var processed = 0;
+        var messages = await _outboxMessageRepository.ListUnpublishedByEventTypeAsync(
+            WebhookEventTypes.StorefrontProjectionRefreshRequested,
+            maxMessages,
+            cancellationToken);
+        if (messages.Count == 0)
+        {
+            return 0;
+        }
 
-        for (var i = 0; i < maxMessages; i++)
+        var productIds = new List<Guid>();
+
+        foreach (var message in messages)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            productIds.AddRange(await ResolveProductIdsAsync(message, cancellationToken));
+        }
 
-            var message = await _outboxMessageRepository.GetNextUnpublishedByEventTypeAsync(
-                WebhookEventTypes.StorefrontProjectionRefreshRequested,
-                cancellationToken);
-            if (message is null)
-            {
-                break;
-            }
+        var distinctProductIds = productIds
+            .Where(x => x != Guid.Empty)
+            .Distinct()
+            .ToList();
 
+        if (distinctProductIds.Count > 0)
+        {
+            await _refreshService.RefreshProductsAsync(distinctProductIds, cancellationToken);
+        }
+
+        var processed = 0;
+        foreach (var message in messages)
+        {
             try
             {
-                var productIds = await ResolveProductIdsAsync(message, cancellationToken);
-                if (productIds.Count > 0)
-                {
-                    await _refreshService.RefreshProductsAsync(productIds, cancellationToken);
-                }
-
                 message.MarkPublished(message.RowVersion);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
                 processed++;
             }
-            catch (ConcurrencyException)
+            catch (ConcurrencyException exception)
             {
-                continue;
+                _logger.LogDebug(exception, "Storefront projection refresh message {MessageId} was already updated.", message.Id);
             }
         }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Processed {MessageCount} storefront projection refresh request(s) for {ProductCount} distinct product(s).",
+            processed,
+            distinctProductIds.Count);
 
         return processed;
     }

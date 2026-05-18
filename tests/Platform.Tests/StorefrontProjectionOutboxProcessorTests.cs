@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Categories.Commands;
@@ -24,6 +25,8 @@ namespace Platform.Tests;
 
 public sealed class StorefrontProjectionOutboxProcessorTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     [Fact]
     public async Task ExecutePendingAsync_RefreshesProjectionForRequestedVariant()
     {
@@ -74,6 +77,61 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             Guid.Parse("50000000-0000-0000-0000-000000000001"),
             CancellationToken.None));
         Assert.Equal(1299m, refreshedProjection.PriceAmount);
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_CoalescesDuplicateProductRefreshRequests()
+    {
+        var store = new InMemoryCatalogStore();
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var now = DateTime.UtcNow;
+        store.OutboxMessages[Guid.NewGuid()] = CreateRefreshMessage(productId, now);
+        store.OutboxMessages[Guid.NewGuid()] = CreateRefreshMessage(productId, now.AddSeconds(1));
+
+        var refreshService = new RecordingStorefrontProjectionRefreshService();
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(2, processed);
+        var refreshedProductIds = Assert.Single(refreshService.RefreshProductBatches);
+        Assert.Equal(productId, Assert.Single(refreshedProductIds));
+        Assert.All(
+            store.OutboxMessages.Values.Where(x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested),
+            message => Assert.True(message.IsPublished));
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_MarksInvalidPayloadAsPublishedWithoutRefreshing()
+    {
+        var store = new InMemoryCatalogStore();
+        var message = new OutboxMessage(
+            Guid.NewGuid(),
+            WebhookEventTypes.StorefrontProjectionRefreshRequested,
+            "StorefrontProductProjection",
+            Guid.NewGuid(),
+            "{invalid-json",
+            DateTime.UtcNow);
+        store.OutboxMessages[message.Id] = message;
+
+        var refreshService = new RecordingStorefrontProjectionRefreshService();
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        Assert.Empty(refreshService.RefreshProductBatches);
+        Assert.True(message.IsPublished);
     }
 
     [Fact]
@@ -343,5 +401,44 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryVariantRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
+    }
+
+    private static OutboxMessage CreateRefreshMessage(Guid productId, DateTime occurredAtUtc)
+    {
+        var payload = new StorefrontProjectionRefreshRequestedPayload(
+            occurredAtUtc,
+            "DuplicateTest",
+            [productId],
+            []);
+
+        return new OutboxMessage(
+            Guid.NewGuid(),
+            WebhookEventTypes.StorefrontProjectionRefreshRequested,
+            "StorefrontProductProjection",
+            productId,
+            JsonSerializer.Serialize(payload, JsonOptions),
+            occurredAtUtc);
+    }
+
+    private sealed class RecordingStorefrontProjectionRefreshService : IStorefrontProjectionRefreshService
+    {
+        public List<IReadOnlyCollection<Guid>> RefreshProductBatches { get; } = [];
+
+        public Task RefreshProductAsync(Guid productId, CancellationToken cancellationToken)
+        {
+            RefreshProductBatches.Add([productId]);
+            return Task.CompletedTask;
+        }
+
+        public Task RefreshProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
+        {
+            RefreshProductBatches.Add(productIds.ToList());
+            return Task.CompletedTask;
+        }
+
+        public Task RebuildAllAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }
