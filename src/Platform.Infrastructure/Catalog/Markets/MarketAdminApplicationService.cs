@@ -4,6 +4,7 @@ using Platform.Application.Catalog.Markets;
 using Platform.Application.Catalog.Markets.Commands;
 using Platform.Application.Catalog.Markets.Queries;
 using Platform.Application.Catalog.Products;
+using Platform.Application.Storefront;
 using Platform.Contracts.Catalog.Markets;
 using Platform.Contracts.Common;
 using Platform.Domain.Catalog.Markets;
@@ -17,15 +18,18 @@ public sealed class MarketAdminApplicationService : IMarketAdminApplicationServi
 
     private readonly IMarketRepository _marketRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
     private readonly IUnitOfWork _unitOfWork;
 
     public MarketAdminApplicationService(
         IMarketRepository marketRepository,
         IProductRepository productRepository,
+        IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
         IUnitOfWork unitOfWork)
     {
         _marketRepository = marketRepository;
         _productRepository = productRepository;
+        _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
         _unitOfWork = unitOfWork;
     }
 
@@ -129,6 +133,10 @@ public sealed class MarketAdminApplicationService : IMarketAdminApplicationServi
         }
 
         market.UpsertProductAssignment(command.ProductId, command.Status, command.RowVersion);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueProductRefreshAsync(
+            command.ProductId,
+            "MarketProductAssignmentUpserted",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(market, cancellationToken);
     }
@@ -141,7 +149,16 @@ public sealed class MarketAdminApplicationService : IMarketAdminApplicationServi
             return null;
         }
 
+        var hadAssignment = market.ProductAssignments.Any(x => x.ProductId == command.ProductId);
         market.RemoveProductAssignment(command.ProductId, command.RowVersion);
+        if (hadAssignment)
+        {
+            await _storefrontProjectionRefreshRequestPublisher.EnqueueProductRefreshAsync(
+                command.ProductId,
+                "MarketProductAssignmentRemoved",
+                cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapDetailsAsync(market, cancellationToken);
     }

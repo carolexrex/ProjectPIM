@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Categories.Commands;
+using Platform.Application.Catalog.Inventory.Commands;
+using Platform.Application.Catalog.Markets.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Storefront;
 using Platform.Domain.Integrations;
@@ -154,6 +156,76 @@ public sealed class StorefrontProjectionOutboxProcessorTests
     }
 
     [Fact]
+    public async Task ExecutePendingAsync_RefreshesProjectionForMarketProductAssignmentFanOut()
+    {
+        var store = new InMemoryCatalogStore();
+        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
+        var refreshService = CreateRefreshService(store, projectionRepository);
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var market = store.Markets[Guid.Parse("62000000-0000-0000-0000-000000000001")];
+        await refreshService.RefreshProductAsync(productId, CancellationToken.None);
+
+        var originalProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.True(originalProjection.IsVisible);
+
+        var marketService = CreateMarketService(store);
+        await marketService.UpsertProductAssignmentAsync(
+            new UpsertMarketProductAssignmentCommand(market.Id, productId, "Inactive", market.RowVersion),
+            CancellationToken.None);
+
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        Assert.Empty(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_RefreshesProjectionForInventoryLocationMarketAssignmentFanOut()
+    {
+        var store = new InMemoryCatalogStore();
+        var projectionRepository = new InMemoryStorefrontProductProjectionRepository(store);
+        var refreshService = CreateRefreshService(store, projectionRepository);
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var location = store.InventoryLocations[Guid.Parse("65000000-0000-0000-0000-000000000001")];
+        var marketId = Guid.Parse("62000000-0000-0000-0000-000000000001");
+        await refreshService.RefreshProductAsync(productId, CancellationToken.None);
+
+        var originalProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Equal("InStock", originalProjection.AvailabilityStatus);
+        Assert.True(originalProjection.IsBuyable);
+
+        var inventoryService = CreateInventoryService(store);
+        await inventoryService.RemoveLocationMarketAssignmentAsync(
+            new RemoveInventoryLocationMarketAssignmentCommand(location.Id, marketId, location.RowVersion),
+            CancellationToken.None);
+
+        Assert.Contains(store.OutboxMessages.Values, x => x.EventType == WebhookEventTypes.StorefrontProjectionRefreshRequested);
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        var refreshedProjection = Assert.Single(await projectionRepository.ListByProductIdAsync(productId, CancellationToken.None));
+        Assert.Equal("Unavailable", refreshedProjection.AvailabilityStatus);
+        Assert.False(refreshedProjection.IsBuyable);
+    }
+
+    [Fact]
     public async Task WebhookOutboxExecution_IgnoresInternalRefreshRequests()
     {
         var store = new InMemoryCatalogStore();
@@ -249,6 +321,26 @@ public sealed class StorefrontProjectionOutboxProcessorTests
         return new InMemoryCategoryAdminApplicationService(
             new InMemoryCategoryRepository(store),
             new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static MarketAdminApplicationService CreateMarketService(InMemoryCatalogStore store)
+    {
+        return new MarketAdminApplicationService(
+            new InMemoryMarketRepository(store),
+            new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static InventoryAdminApplicationService CreateInventoryService(InMemoryCatalogStore store)
+    {
+        return new InventoryAdminApplicationService(
+            new InMemoryInventoryLocationRepository(store),
+            new InMemoryInventoryBalanceRepository(store),
+            new InMemoryMarketRepository(store),
+            new InMemoryVariantRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
     }

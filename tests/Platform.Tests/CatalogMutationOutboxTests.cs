@@ -2,6 +2,7 @@ using System.Text.Json;
 using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Categories.Commands;
 using Platform.Application.Catalog.Inventory.Commands;
+using Platform.Application.Catalog.Markets.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Catalog.Products.Commands;
 using Platform.Contracts.Integrations;
@@ -156,6 +157,22 @@ public sealed class CatalogMutationOutboxTests
     }
 
     [Fact]
+    public async Task MarketProductAssignmentUpsert_EnqueuesStorefrontProjectionRefreshRequest()
+    {
+        var store = new InMemoryCatalogStore();
+        var service = CreateMarketService(store);
+        var market = store.Markets[Guid.Parse("62000000-0000-0000-0000-000000000001")];
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+
+        await service.UpsertProductAssignmentAsync(
+            new UpsertMarketProductAssignmentCommand(market.Id, productId, "Inactive", market.RowVersion),
+            CancellationToken.None);
+
+        var message = Assert.Single(store.OutboxMessages.Values);
+        Assert.Equal(WebhookEventTypes.StorefrontProjectionRefreshRequested, message.EventType);
+    }
+
+    [Fact]
     public async Task PriceListCreate_EnqueuesPriceListCreatedEvent()
     {
         var store = new InMemoryCatalogStore();
@@ -231,6 +248,22 @@ public sealed class CatalogMutationOutboxTests
         Assert.Equal(WebhookEventTypes.StorefrontProjectionRefreshRequested, message.EventType);
     }
 
+    [Fact]
+    public async Task InventoryLocationMarketAssignmentUpsert_EnqueuesStorefrontProjectionRefreshRequest()
+    {
+        var store = new InMemoryCatalogStore();
+        var service = CreateInventoryService(store);
+        var location = store.InventoryLocations[Guid.Parse("65000000-0000-0000-0000-000000000001")];
+        var marketId = Guid.Parse("62000000-0000-0000-0000-000000000001");
+
+        await service.UpsertLocationMarketAssignmentAsync(
+            new UpsertInventoryLocationMarketAssignmentCommand(location.Id, marketId, 5, location.RowVersion),
+            CancellationToken.None);
+
+        var message = Assert.Single(store.OutboxMessages.Values);
+        Assert.Equal(WebhookEventTypes.StorefrontProjectionRefreshRequested, message.EventType);
+    }
+
     private static BrandAdminApplicationService CreateBrandService(InMemoryCatalogStore store)
     {
         return new BrandAdminApplicationService(
@@ -260,6 +293,15 @@ public sealed class CatalogMutationOutboxTests
     {
         return new InMemoryCategoryAdminApplicationService(
             new InMemoryCategoryRepository(store),
+            new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
+            new InMemoryUnitOfWork());
+    }
+
+    private static MarketAdminApplicationService CreateMarketService(InMemoryCatalogStore store)
+    {
+        return new MarketAdminApplicationService(
+            new InMemoryMarketRepository(store),
             new InMemoryProductRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());

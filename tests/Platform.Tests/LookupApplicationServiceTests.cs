@@ -36,6 +36,7 @@ public sealed class LookupApplicationServiceTests
         var service = new MarketAdminApplicationService(
             new InMemoryMarketRepository(store),
             new InMemoryProductRepository(store),
+            new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),
             new InMemoryUnitOfWork());
 
         var results = await service.ListLookupsAsync(

@@ -123,6 +123,10 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         }
 
         location.UpsertMarketAssignment(command.MarketId, command.Priority, command.RowVersion);
+        await EnqueueStorefrontRefreshForLocationBalancesAsync(
+            location.Id,
+            "InventoryLocationMarketAssignmentUpserted",
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapLocationDetailsAsync(location, cancellationToken);
     }
@@ -135,9 +139,30 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
             return null;
         }
 
+        var hadAssignment = location.MarketAssignments.Any(x => x.MarketId == command.MarketId);
         location.RemoveMarketAssignment(command.MarketId, command.RowVersion);
+        if (hadAssignment)
+        {
+            await EnqueueStorefrontRefreshForLocationBalancesAsync(
+                location.Id,
+                "InventoryLocationMarketAssignmentRemoved",
+                cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return await MapLocationDetailsAsync(location, cancellationToken);
+    }
+
+    private async Task EnqueueStorefrontRefreshForLocationBalancesAsync(
+        Guid inventoryLocationId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var balances = await _inventoryBalanceRepository.ListByInventoryLocationAsync(inventoryLocationId, cancellationToken);
+        await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantsRefreshAsync(
+            balances.Select(x => x.VariantId).Distinct().ToList(),
+            reason,
+            cancellationToken);
     }
 
     public async Task<InventoryBalanceDto> UpsertBalanceAsync(UpsertInventoryBalanceCommand command, CancellationToken cancellationToken)
