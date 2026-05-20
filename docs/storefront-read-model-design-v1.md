@@ -560,8 +560,9 @@ Current implementation status:
 - storefront refresh requests are processed as internal outbox messages with event-type-specific polling, separate from external webhook fanout
 - storefront product reads do not rebuild projections on read misses; rebuilds and incremental refreshes are worker/admin responsibilities
 - `Platform.Worker` processes refresh requests before publishing outbox messages, resolving affected variants back to product projection rows
-- refresh processing coalesces each batch into distinct product ids before rebuilding projections, marks invalid refresh payloads complete after logging a warning, and logs message/product counts for observability
-- the documented direct dependency fan-outs for Phase 3 are now covered; remaining hardening is operational monitoring and any future retry policy beyond outbox reprocessing
+- refresh processing coalesces each batch into distinct product ids before rebuilding projections, falls back to per-message processing when the coalesced batch fails, marks invalid refresh payloads complete after logging a warning, and logs message/product counts for observability
+- internal storefront refresh messages persist attempt count, last error, next retry time, and abandonment state after repeated failures
+- the documented direct dependency fan-outs for Phase 3 are now covered; remaining hardening is operational monitoring and admin/operator visibility
 
 ### Phase 4: Search Refinement
 

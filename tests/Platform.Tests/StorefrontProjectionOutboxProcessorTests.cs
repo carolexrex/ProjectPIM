@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Platform.Application.Catalog.Variants;
+using Platform.Application.Catalog.Variants.Queries;
 using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Catalog.Brands.Commands;
 using Platform.Application.Catalog.Categories.Commands;
@@ -7,6 +9,7 @@ using Platform.Application.Catalog.Markets.Commands;
 using Platform.Application.Catalog.Pricing.Commands;
 using Platform.Application.Storefront;
 using Platform.Domain.Integrations;
+using Platform.Domain.Catalog.Variants;
 using Platform.Infrastructure.Catalog;
 using Platform.Infrastructure.Catalog.Attributes;
 using Platform.Infrastructure.Catalog.Brands;
@@ -65,6 +68,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -93,6 +97,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -124,6 +129,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -132,6 +138,145 @@ public sealed class StorefrontProjectionOutboxProcessorTests
         Assert.Equal(1, processed);
         Assert.Empty(refreshService.RefreshProductBatches);
         Assert.True(message.IsPublished);
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_SchedulesRetryWhenRefreshFails()
+    {
+        var store = new InMemoryCatalogStore();
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var message = CreateRefreshMessage(productId, DateTime.UtcNow);
+        store.OutboxMessages[message.Id] = message;
+        var before = DateTime.UtcNow;
+        var changeTracker = new RecordingStorefrontProjectionChangeTracker();
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            new FailingStorefrontProjectionRefreshService("temporary projection failure"),
+            new InMemoryVariantRepository(store),
+            changeTracker,
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(0, processed);
+        Assert.False(message.IsPublished);
+        Assert.False(message.IsProcessingAbandoned);
+        Assert.Equal(1, message.ProcessingAttemptCount);
+        Assert.Equal("temporary projection failure", message.LastProcessingError);
+        Assert.NotNull(message.NextProcessingAttemptAtUtc);
+        Assert.True(message.NextProcessingAttemptAtUtc >= before);
+        Assert.Equal(2, changeTracker.DiscardCount);
+
+        var retryProcessed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+        Assert.Equal(0, retryProcessed);
+        Assert.Equal(1, message.ProcessingAttemptCount);
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_FallsBackToPerMessageProcessingWhenBatchFails()
+    {
+        var store = new InMemoryCatalogStore();
+        var healthyProductId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var failingProductId = Guid.Parse("50000000-0000-0000-0000-000000000002");
+        var healthyMessage = CreateRefreshMessage(healthyProductId, DateTime.UtcNow);
+        var failingMessage = CreateRefreshMessage(failingProductId, DateTime.UtcNow.AddSeconds(1));
+        store.OutboxMessages[healthyMessage.Id] = healthyMessage;
+        store.OutboxMessages[failingMessage.Id] = failingMessage;
+        var changeTracker = new RecordingStorefrontProjectionChangeTracker();
+        var refreshService = new FailingForProductStorefrontProjectionRefreshService(failingProductId, "bad product projection");
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new InMemoryVariantRepository(store),
+            changeTracker,
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(1, processed);
+        Assert.True(healthyMessage.IsPublished);
+        Assert.False(failingMessage.IsPublished);
+        Assert.False(failingMessage.IsProcessingAbandoned);
+        Assert.Equal(1, failingMessage.ProcessingAttemptCount);
+        Assert.Equal("bad product projection", failingMessage.LastProcessingError);
+        Assert.NotNull(failingMessage.NextProcessingAttemptAtUtc);
+        Assert.Equal(2, changeTracker.DiscardCount);
+        Assert.Collection(
+            refreshService.RefreshProductBatches,
+            batch => Assert.Equal([healthyProductId, failingProductId], batch),
+            batch => Assert.Equal([healthyProductId], batch),
+            batch => Assert.Equal([failingProductId], batch));
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_SchedulesRetryWhenVariantLookupFails()
+    {
+        var store = new InMemoryCatalogStore();
+        var variantId = Guid.Parse("50000000-0000-0000-0000-000000000011");
+        var message = CreateVariantRefreshMessage(variantId, DateTime.UtcNow);
+        store.OutboxMessages[message.Id] = message;
+
+        var refreshService = new RecordingStorefrontProjectionRefreshService();
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            refreshService,
+            new FailingVariantRepository("temporary variant lookup failure"),
+            new NoOpStorefrontProjectionChangeTracker(),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(0, processed);
+        Assert.Empty(refreshService.RefreshProductBatches);
+        Assert.False(message.IsPublished);
+        Assert.False(message.IsProcessingAbandoned);
+        Assert.Equal(1, message.ProcessingAttemptCount);
+        Assert.Equal("temporary variant lookup failure", message.LastProcessingError);
+        Assert.NotNull(message.NextProcessingAttemptAtUtc);
+
+        var retryProcessed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+        Assert.Equal(0, retryProcessed);
+        Assert.Equal(1, message.ProcessingAttemptCount);
+    }
+
+    [Fact]
+    public async Task ExecutePendingAsync_AbandonsRefreshAfterMaxAttempts()
+    {
+        var store = new InMemoryCatalogStore();
+        var productId = Guid.Parse("50000000-0000-0000-0000-000000000001");
+        var message = CreateRefreshMessage(productId, DateTime.UtcNow);
+        for (var i = 0; i < 4; i++)
+        {
+            message.MarkProcessingRetry("previous failure", DateTime.UtcNow.AddMinutes(-1), message.RowVersion);
+        }
+
+        store.OutboxMessages[message.Id] = message;
+
+        var processor = new StorefrontProjectionOutboxProcessor(
+            new InMemoryOutboxMessageRepository(store),
+            new FailingStorefrontProjectionRefreshService("permanent projection failure"),
+            new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
+            new InMemoryUnitOfWork(),
+            NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
+
+        var processed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+
+        Assert.Equal(0, processed);
+        Assert.False(message.IsPublished);
+        Assert.True(message.IsProcessingAbandoned);
+        Assert.Equal(5, message.ProcessingAttemptCount);
+        Assert.Equal("permanent projection failure", message.LastProcessingError);
+        Assert.Null(message.NextProcessingAttemptAtUtc);
+
+        var retryProcessed = await processor.ExecutePendingAsync(10, CancellationToken.None);
+        Assert.Equal(0, retryProcessed);
+        Assert.Equal(5, message.ProcessingAttemptCount);
     }
 
     [Fact]
@@ -164,6 +309,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -203,6 +349,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -237,6 +384,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -272,6 +420,7 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             new InMemoryOutboxMessageRepository(store),
             refreshService,
             new InMemoryVariantRepository(store),
+            new NoOpStorefrontProjectionChangeTracker(),
             new InMemoryUnitOfWork(),
             NullLogger<StorefrontProjectionOutboxProcessor>.Instance);
 
@@ -420,6 +569,23 @@ public sealed class StorefrontProjectionOutboxProcessorTests
             occurredAtUtc);
     }
 
+    private static OutboxMessage CreateVariantRefreshMessage(Guid variantId, DateTime occurredAtUtc)
+    {
+        var payload = new StorefrontProjectionRefreshRequestedPayload(
+            occurredAtUtc,
+            "VariantLookupFailureTest",
+            [],
+            [variantId]);
+
+        return new OutboxMessage(
+            Guid.NewGuid(),
+            WebhookEventTypes.StorefrontProjectionRefreshRequested,
+            "StorefrontProductProjection",
+            variantId,
+            JsonSerializer.Serialize(payload, JsonOptions),
+            occurredAtUtc);
+    }
+
     private sealed class RecordingStorefrontProjectionRefreshService : IStorefrontProjectionRefreshService
     {
         public List<IReadOnlyCollection<Guid>> RefreshProductBatches { get; } = [];
@@ -439,6 +605,117 @@ public sealed class StorefrontProjectionOutboxProcessorTests
         public Task RebuildAllAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingStorefrontProjectionRefreshService : IStorefrontProjectionRefreshService
+    {
+        private readonly string _message;
+
+        public FailingStorefrontProjectionRefreshService(string message)
+        {
+            _message = message;
+        }
+
+        public Task RefreshProductAsync(Guid productId, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task RefreshProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task RebuildAllAsync(CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+    }
+
+    private sealed class FailingForProductStorefrontProjectionRefreshService : IStorefrontProjectionRefreshService
+    {
+        private readonly Guid _failingProductId;
+        private readonly string _message;
+
+        public FailingForProductStorefrontProjectionRefreshService(Guid failingProductId, string message)
+        {
+            _failingProductId = failingProductId;
+            _message = message;
+        }
+
+        public List<IReadOnlyCollection<Guid>> RefreshProductBatches { get; } = [];
+
+        public Task RefreshProductAsync(Guid productId, CancellationToken cancellationToken)
+        {
+            return RefreshProductsAsync([productId], cancellationToken);
+        }
+
+        public Task RefreshProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken)
+        {
+            var batch = productIds.ToList();
+            RefreshProductBatches.Add(batch);
+            if (batch.Contains(_failingProductId))
+            {
+                throw new InvalidOperationException(_message);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task RebuildAllAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingStorefrontProjectionChangeTracker : IStorefrontProjectionChangeTracker
+    {
+        public int DiscardCount { get; private set; }
+
+        public void DiscardPendingChanges()
+        {
+            DiscardCount++;
+        }
+    }
+
+    private sealed class FailingVariantRepository : IVariantRepository
+    {
+        private readonly string _message;
+
+        public FailingVariantRepository(string message)
+        {
+            _message = message;
+        }
+
+        public Task<IReadOnlyList<Variant>> ListByProductAsync(Guid productId, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task<IReadOnlyList<Variant>> ListLookupsAsync(ListVariantLookupsQuery query, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task<IReadOnlyList<Variant>> GetByIdsAsync(IReadOnlyCollection<Guid> variantIds, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task<Variant?> GetByIdAsync(Guid variantId, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task<Variant?> GetBySkuAsync(string sku, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
+        }
+
+        public Task AddAsync(Variant variant, CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException(_message);
         }
     }
 }

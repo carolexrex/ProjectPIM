@@ -40,6 +40,7 @@ Webhook replay settings shared with the admin API:
 
 - The worker does not perform webhook replay inline. Replay only reschedules a delivery; the worker executes it when `NextAttemptAtUtc` becomes runnable.
 - Storefront projection refresh requests are processed before webhook outbox fanout so webhook consumers see events after the local projection has been refreshed.
-- Storefront projection refresh processing coalesces each polling batch to distinct product ids and logs processed message/product counts.
+- Storefront projection refresh processing coalesces each polling batch to distinct product ids, falls back to per-message processing when a coalesced batch fails, and logs processed message/product counts.
 - Invalid storefront projection refresh payloads are treated as poison messages: they are logged and marked published so they do not block later refresh work.
+- Failed storefront projection refresh batches record attempt count, last error, and next retry time. Repeated failures are abandoned after the processor limit so one bad refresh cannot consume worker capacity indefinitely.
 - Catalog persistence and webhook/outbox runtime options are registered through `Platform.Infrastructure`.

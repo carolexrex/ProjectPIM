@@ -4,6 +4,8 @@ namespace Platform.Domain.Integrations;
 
 public sealed class OutboxMessage
 {
+    private const int MaxProcessingErrorLength = 2048;
+
     private OutboxMessage()
     {
         Id = Guid.Empty;
@@ -39,11 +41,16 @@ public sealed class OutboxMessage
     public string PayloadJson { get; private set; }
     public DateTime OccurredAtUtc { get; private set; }
     public DateTime? PublishedAtUtc { get; private set; }
+    public int ProcessingAttemptCount { get; private set; }
+    public string? LastProcessingError { get; private set; }
+    public DateTime? NextProcessingAttemptAtUtc { get; private set; }
+    public DateTime? ProcessingAbandonedAtUtc { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
     public string RowVersion { get; private set; }
 
     public bool IsPublished => PublishedAtUtc.HasValue;
+    public bool IsProcessingAbandoned => ProcessingAbandonedAtUtc.HasValue;
 
     public void MarkPublished(string rowVersion)
     {
@@ -55,6 +62,44 @@ public sealed class OutboxMessage
         }
 
         PublishedAtUtc = DateTime.UtcNow;
+        LastProcessingError = null;
+        NextProcessingAttemptAtUtc = null;
+        Touch();
+    }
+
+    public void MarkProcessingRetry(string error, DateTime nextAttemptAtUtc, string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        if (PublishedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("The outbox message is already published.");
+        }
+
+        if (ProcessingAbandonedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("The outbox message processing is abandoned.");
+        }
+
+        ProcessingAttemptCount++;
+        LastProcessingError = NormalizeOptional(error);
+        NextProcessingAttemptAtUtc = nextAttemptAtUtc;
+        Touch();
+    }
+
+    public void MarkProcessingAbandoned(string error, string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        if (PublishedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("The outbox message is already published.");
+        }
+
+        ProcessingAttemptCount++;
+        LastProcessingError = NormalizeOptional(error);
+        NextProcessingAttemptAtUtc = null;
+        ProcessingAbandonedAtUtc = DateTime.UtcNow;
         Touch();
     }
 
@@ -75,6 +120,19 @@ public sealed class OutboxMessage
     private static string NormalizeRequired(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= MaxProcessingErrorLength
+            ? normalized
+            : normalized[..MaxProcessingErrorLength];
     }
 
     private static string NewRowVersion()

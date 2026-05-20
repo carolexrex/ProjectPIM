@@ -129,6 +129,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProductStatusDefinitionRepository, InMemoryProductStatusDefinitionRepository>();
         services.AddScoped<IProductStatusDefinitionApplicationService, ProductStatusDefinitionApplicationService>();
         services.AddScoped<IStorefrontProductProjectionRepository, InMemoryStorefrontProductProjectionRepository>();
+        services.AddScoped<IStorefrontProjectionChangeTracker, NoOpStorefrontProjectionChangeTracker>();
         services.AddScoped<IVariantRepository, InMemoryVariantRepository>();
         services.AddScoped<IWebhookSubscriptionRepository, InMemoryWebhookSubscriptionRepository>();
         services.AddScoped<IWebhookDeliveryRepository, InMemoryWebhookDeliveryRepository>();
@@ -169,6 +170,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProductStatusDefinitionRepository, EfProductStatusDefinitionRepository>();
         services.AddScoped<IProductStatusDefinitionApplicationService, ProductStatusDefinitionApplicationService>();
         services.AddScoped<IStorefrontProductProjectionRepository, EfStorefrontProductProjectionRepository>();
+        services.AddScoped<IStorefrontProjectionChangeTracker, EfStorefrontProjectionChangeTracker>();
         services.AddScoped<IVariantRepository, EfVariantRepository>();
         services.AddScoped<IWebhookSubscriptionRepository, EfWebhookSubscriptionRepository>();
         services.AddScoped<IWebhookDeliveryRepository, EfWebhookDeliveryRepository>();

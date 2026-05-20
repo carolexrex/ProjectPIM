@@ -23,7 +23,14 @@ The outbox table is also used for internal worker scheduling messages, currently
 
 - `storefront.product-projection.refresh-requested`
 
-Internal messages are not webhook events. The storefront projection processor claims only refresh-request messages and marks them published after the local projection refresh has completed. It processes a page of refresh requests at a time, coalesces them to distinct product ids, and treats invalid payloads as poison messages by logging a warning and marking them published without rebuilding. Webhook fanout claims only externally supported webhook event types, so internal refresh requests cannot be marked published by webhook delivery processing.
+Internal messages are not webhook events. The storefront projection processor claims only refresh-request messages and marks them published after the local projection refresh has completed. It processes a page of refresh requests at a time, coalesces them to distinct product ids, falls back to per-message processing when the coalesced batch fails, and treats invalid payloads as poison messages by logging a warning and marking them published without rebuilding. Webhook fanout claims only externally supported webhook event types, so internal refresh requests cannot be marked published by webhook delivery processing.
+
+Internal storefront refresh messages record processing state:
+
+- record processing attempt count
+- record last processing error
+- delay retries with `NextProcessingAttemptAtUtc`
+- abandon repeated failures so one bad refresh cannot consume worker capacity indefinitely
 
 ## Delivery Lifecycle
 

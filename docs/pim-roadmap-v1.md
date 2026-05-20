@@ -321,6 +321,7 @@ Completed In Current Slice:
 - admin API and worker now support a real storefront projection rebuild job, and storefront product browse/detail read through the projection repository
 - direct product, variant, brand, category subtree, market product assignment, inventory-location market assignment, price-list entry, and inventory-balance mutations now enqueue targeted storefront projection refresh requests processed by the worker
 - storefront projection refresh requests are internal outbox messages processed separately from external webhook fanout, and storefront reads no longer perform full rebuilds on read misses
+- storefront projection refresh processing now persists retry/backoff state so repeated failures are observable, delayed, and eventually abandoned instead of retried every worker tick
 - storefront context resolution supports explicit channel/market input and host-name-based channel lookup
 - product browse now exposes supported sort values plus category/brand facet metadata for storefront consumers
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior

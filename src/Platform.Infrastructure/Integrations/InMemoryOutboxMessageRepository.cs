@@ -31,7 +31,11 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
         return Task.FromResult(message);
     }
 
-    public Task<IReadOnlyList<OutboxMessage>> ListUnpublishedByEventTypeAsync(string eventType, int maxMessages, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<OutboxMessage>> ListRunnableByEventTypeAsync(
+        string eventType,
+        int maxMessages,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -41,7 +45,11 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
         }
 
         IReadOnlyList<OutboxMessage> messages = _store.OutboxMessages.Values
-            .Where(x => !x.IsPublished && string.Equals(x.EventType, eventType, StringComparison.OrdinalIgnoreCase))
+            .Where(x =>
+                !x.IsPublished
+                && !x.IsProcessingAbandoned
+                && string.Equals(x.EventType, eventType, StringComparison.OrdinalIgnoreCase)
+                && (!x.NextProcessingAttemptAtUtc.HasValue || x.NextProcessingAttemptAtUtc <= nowUtc))
             .OrderBy(x => x.OccurredAtUtc)
             .ThenBy(x => x.Id)
             .Take(maxMessages)

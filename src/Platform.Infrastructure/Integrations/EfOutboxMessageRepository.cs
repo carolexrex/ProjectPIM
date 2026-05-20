@@ -28,7 +28,11 @@ public sealed class EfOutboxMessageRepository : IOutboxMessageRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<OutboxMessage>> ListUnpublishedByEventTypeAsync(string eventType, int maxMessages, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<OutboxMessage>> ListRunnableByEventTypeAsync(
+        string eventType,
+        int maxMessages,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
     {
         if (maxMessages <= 0)
         {
@@ -36,7 +40,11 @@ public sealed class EfOutboxMessageRepository : IOutboxMessageRepository
         }
 
         return await _dbContext.OutboxMessages
-            .Where(x => !x.PublishedAtUtc.HasValue && x.EventType == eventType)
+            .Where(x =>
+                !x.PublishedAtUtc.HasValue
+                && !x.ProcessingAbandonedAtUtc.HasValue
+                && x.EventType == eventType
+                && (!x.NextProcessingAttemptAtUtc.HasValue || x.NextProcessingAttemptAtUtc <= nowUtc))
             .OrderBy(x => x.OccurredAtUtc)
             .ThenBy(x => x.Id)
             .Take(maxMessages)
