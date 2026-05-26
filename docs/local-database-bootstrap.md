@@ -19,7 +19,7 @@ docker run --name projektpim-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_
 
 ## One-command dev startup
 
-To start PostgreSQL, apply migrations, build the solution, and launch both the admin API and backoffice together:
+To start PostgreSQL, apply migrations, build the solution, and launch the admin API, storefront API, backoffice, and worker together:
 
 Windows PowerShell:
 
@@ -40,8 +40,17 @@ Both scripts:
 - apply EF migrations unless you opt out
 - build the solution
 - start `Platform.Api` on `http://localhost:5053`
+- start `Platform.StorefrontApi` on `http://localhost:5064`
 - start `Platform.Backoffice` on `http://localhost:5168`
+- start `Platform.Worker` for integration jobs, storefront projection refreshes, outbox fanout, and webhook delivery
 - write logs and pid files under `.dev-runtime/`
+
+Important data note:
+
+- migrations seed catalog status definitions, not a full demo catalog
+- the storefront usage examples that use `WEB-SE`, `SE`, `example-drill`, and `SKU-EXAMPLE-1` require either the in-memory demo provider or equivalent PostgreSQL smoke data
+- product browse/detail endpoints read storefront product projections, so PostgreSQL smoke data also needs a projection rebuild or worker-processed refresh requests before product endpoints return seeded products
+- use [nexra-storefront-smoke.md](./nexra-storefront-smoke.md) to seed PostgreSQL for the Nexra read-only storefront smoke
 
 Optional flags:
 

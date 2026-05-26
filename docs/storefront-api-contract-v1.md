@@ -52,6 +52,20 @@ Recommended base path:
 
 - `/api/storefront`
 
+Local development host:
+
+- `http://localhost:5064`
+
+Local development base URL:
+
+- `http://localhost:5064/api/storefront`
+
+`Platform.StorefrontApi` is a separate HTTP host from the admin API. Do not call storefront endpoints through the admin API host unless the deployment explicitly fronts both services behind one gateway.
+
+When configuring a consumer such as Nexra, prefer the full base URL and append endpoint paths such as `/context`, `/categories`, and `/products`. If a connector is configured with only the host/origin, it must append `/api/storefront` exactly once.
+
+The sample identifiers in this contract, such as `WEB-SE`, `SE`, and `example-drill`, are illustrative. In local development they are available in the in-memory demo store, but a freshly migrated PostgreSQL database only contains baseline metadata such as catalog status definitions. PostgreSQL smoke tests must create matching channel, market, catalog, pricing, inventory, and storefront projection data first.
+
 ## Design Rules
 
 The storefront API should:
@@ -82,7 +96,7 @@ Purpose:
 
 Example query:
 
-- `/api/storefront/context?channel=WEB-SE&market=SE&culture=en-GB`
+- `/api/storefront/context?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK`
 
 Suggested response shape:
 
@@ -213,7 +227,9 @@ This matters because Nexra and other CMS consumers need structured decisions, no
 
 ## Nexra-Oriented First Slice
 
-If the near-term goal is Nexra integration, the smallest useful storefront slice is:
+The first read-only Nexra smoke has passed against the local PostgreSQL smoke seed using the base URL `http://localhost:5064/api/storefront`.
+
+For Nexra integration, the smallest useful storefront slice is:
 
 1. `GET /api/storefront/context`
 2. `GET /api/storefront/categories`

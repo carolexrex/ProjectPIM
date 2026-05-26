@@ -8,15 +8,21 @@ LOG_ROOT="$RUNTIME_ROOT/logs"
 DOTNET_CLI_HOME_DIR="$REPO_ROOT/.dotnet-cli"
 
 API_PROJECT_ROOT="$REPO_ROOT/src/Platform.Api"
+STOREFRONT_API_PROJECT_ROOT="$REPO_ROOT/src/Platform.StorefrontApi"
 BACKOFFICE_PROJECT_ROOT="$REPO_ROOT/src/Platform.Backoffice"
+WORKER_PROJECT_ROOT="$REPO_ROOT/src/Platform.Worker"
 INFRASTRUCTURE_PROJECT="$REPO_ROOT/src/Platform.Infrastructure/Platform.Infrastructure.csproj"
 SOLUTION_PATH="$REPO_ROOT/Platform.slnx"
 API_DLL="$API_PROJECT_ROOT/bin/Debug/net10.0/Platform.Api.dll"
+STOREFRONT_API_DLL="$STOREFRONT_API_PROJECT_ROOT/bin/Debug/net10.0/Platform.StorefrontApi.dll"
 BACKOFFICE_DLL="$BACKOFFICE_PROJECT_ROOT/bin/Debug/net10.0/Platform.Backoffice.dll"
+WORKER_DLL="$WORKER_PROJECT_ROOT/bin/Debug/net10.0/Platform.Worker.dll"
 
 API_URL="http://localhost:5053/"
+STOREFRONT_API_URL="http://localhost:5064/"
 BACKOFFICE_URL="http://localhost:5168/"
 API_PROBE_URL="$API_URL"
+STOREFRONT_API_PROBE_URL="$STOREFRONT_API_URL"
 BACKOFFICE_PROBE_URL="${BACKOFFICE_URL}auth/login"
 POSTGRES_CONTAINER_NAME="projektpim-postgres"
 POSTGRES_IMAGE="postgres:17"
@@ -126,7 +132,7 @@ start_managed_process() {
   local name="$1"
   local working_directory="$2"
   local application_dll="$3"
-  local url="$4"
+  local url="${4:-}"
   local pid_file="$PID_ROOT/$name.pid"
   local stdout_log="$LOG_ROOT/$name.out.log"
   local stderr_log="$LOG_ROOT/$name.err.log"
@@ -141,11 +147,19 @@ start_managed_process() {
   fi
 
   log_step "Starting $name"
-  (
-    cd "$working_directory"
-    ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="$url" nohup dotnet "$application_dll" >"$stdout_log" 2>"$stderr_log" &
-    echo $! > "$pid_file"
-  )
+  if [[ -n "$url" ]]; then
+    (
+      cd "$working_directory"
+      DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="$url" nohup dotnet "$application_dll" >"$stdout_log" 2>"$stderr_log" &
+      echo $! > "$pid_file"
+    )
+  else
+    (
+      cd "$working_directory"
+      DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development nohup dotnet "$application_dll" >"$stdout_log" 2>"$stderr_log" &
+      echo $! > "$pid_file"
+    )
+  fi
 }
 
 wait_for_http_endpoint() {
@@ -236,22 +250,37 @@ if [[ ! -f "$API_DLL" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$STOREFRONT_API_DLL" ]]; then
+  echo "Built Storefront API assembly was not found at $STOREFRONT_API_DLL." >&2
+  exit 1
+fi
+
 if [[ ! -f "$BACKOFFICE_DLL" ]]; then
   echo "Built Backoffice assembly was not found at $BACKOFFICE_DLL." >&2
   exit 1
 fi
 
+if [[ ! -f "$WORKER_DLL" ]]; then
+  echo "Built Worker assembly was not found at $WORKER_DLL." >&2
+  exit 1
+fi
+
 start_managed_process "api" "$API_PROJECT_ROOT" "$API_DLL" "$API_URL"
+start_managed_process "storefront-api" "$STOREFRONT_API_PROJECT_ROOT" "$STOREFRONT_API_DLL" "$STOREFRONT_API_URL"
 start_managed_process "backoffice" "$BACKOFFICE_PROJECT_ROOT" "$BACKOFFICE_DLL" "$BACKOFFICE_URL"
+start_managed_process "worker" "$WORKER_PROJECT_ROOT" "$WORKER_DLL"
 
 wait_for_http_endpoint "api" "$API_PROBE_URL"
+wait_for_http_endpoint "storefront-api" "$STOREFRONT_API_PROBE_URL"
 wait_for_http_endpoint "backoffice" "$BACKOFFICE_PROBE_URL"
 
 echo
 echo "Development stack is running."
-echo "API:        $API_URL"
-echo "Backoffice: $BACKOFFICE_URL"
-echo "Logs:       $LOG_ROOT"
-echo "Stop with:  ./scripts/stop-dev.sh"
+echo "Admin API:      $API_URL"
+echo "Storefront API: $STOREFRONT_API_URL"
+echo "Backoffice:     $BACKOFFICE_URL"
+echo "Worker:         running"
+echo "Logs:           $LOG_ROOT"
+echo "Stop with:      ./scripts/stop-dev.sh"
 
 open_backoffice_browser "$BACKOFFICE_URL"

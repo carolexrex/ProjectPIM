@@ -302,8 +302,10 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
 
     private async Task<PriceListDetailsDto> MapDetailsAsync(PriceList priceList, CancellationToken cancellationToken)
     {
-        var marketsTask = _marketRepository.GetByIdsAsync(priceList.MarketAssignments.Select(x => x.MarketId).Distinct().ToList(), cancellationToken);
-        var variantsTask = _variantRepository.GetByIdsAsync(
+        var markets = await _marketRepository.GetByIdsAsync(
+            priceList.MarketAssignments.Select(x => x.MarketId).Distinct().ToList(),
+            cancellationToken);
+        var variants = await _variantRepository.GetByIdsAsync(
             priceList.Entries
                 .Where(x => string.Equals(x.TargetType, "Variant", StringComparison.OrdinalIgnoreCase))
                 .Select(x => x.TargetId)
@@ -311,10 +313,8 @@ public sealed class PriceListAdminApplicationService : IPriceListAdminApplicatio
                 .ToList(),
             cancellationToken);
 
-        await Task.WhenAll(marketsTask, variantsTask);
-
-        var marketMap = (await marketsTask).ToDictionary(x => x.Id);
-        var variantMap = (await variantsTask).ToDictionary(x => x.Id);
+        var marketMap = markets.ToDictionary(x => x.Id);
+        var variantMap = variants.ToDictionary(x => x.Id);
 
         return new PriceListDetailsDto(
             priceList.Id,

@@ -54,7 +54,9 @@ stop_tracked_process() {
 }
 
 stop_tracked_process "api"
+stop_tracked_process "storefront-api"
 stop_tracked_process "backoffice"
+stop_tracked_process "worker"
 
 if [[ "$KEEP_DATABASE" -eq 0 ]]; then
   if docker ps -a --format '{{.Names}}' | grep -Fxq "$POSTGRES_CONTAINER_NAME"; then

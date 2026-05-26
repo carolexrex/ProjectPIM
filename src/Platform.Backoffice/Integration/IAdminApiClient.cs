@@ -12,6 +12,7 @@ using Platform.Contracts.Catalog.Variants;
 using Platform.Contracts.Companies;
 using Platform.Contracts.Common;
 using Platform.Contracts.Customers;
+using Platform.Contracts.Integrations;
 using Platform.Contracts.Orders;
 
 namespace Platform.Backoffice.Integration;
@@ -223,4 +224,14 @@ public interface IAdminApiClient
     Task<VariantDetailsDto?> UpdateVariantAsync(Guid id, UpdateVariantRequest request, CancellationToken cancellationToken);
     Task<VariantDetailsDto?> UpsertVariantMediaAsync(Guid id, UpsertVariantMediaRequest request, CancellationToken cancellationToken);
     Task<VariantDetailsDto?> RemoveVariantMediaAsync(Guid id, Guid variantMediaId, RemoveVariantMediaRequest request, CancellationToken cancellationToken);
+    Task<PagedResponse<StorefrontProjectionRefreshMessageSummaryDto>> ListStorefrontProjectionRefreshMessagesAsync(
+        string? status,
+        string? sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+    Task<StorefrontProjectionRefreshMessageDetailsDto?> ResetStorefrontProjectionRefreshMessageAsync(
+        Guid id,
+        ResetStorefrontProjectionRefreshMessageRequest request,
+        CancellationToken cancellationToken);
 }

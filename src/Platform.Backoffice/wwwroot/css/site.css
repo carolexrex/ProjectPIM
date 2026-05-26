@@ -196,6 +196,7 @@ a {
 .search-form,
 .filter-form,
 .stat-strip,
+.pager,
 .filter-actions,
 .form-actions {
     display: flex;
@@ -206,6 +207,12 @@ a {
 .panel-toolbar {
     justify-content: space-between;
     margin-bottom: 1rem;
+}
+
+.pager {
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 1rem;
 }
 
 .search-form {

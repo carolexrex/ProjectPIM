@@ -6,6 +6,48 @@ This guide describes how to consume the currently implemented `Platform.Storefro
 
 - `/api/storefront`
 
+Local development host/origin:
+
+- `http://localhost:5064`
+
+Local development base URL:
+
+- `http://localhost:5064/api/storefront`
+
+The storefront API is hosted by `Platform.StorefrontApi`, separate from the admin API host on `http://localhost:5053`.
+
+Use one URL convention in a connector:
+
+- full base URL: `http://localhost:5064/api/storefront`, then call `{baseUrl}/context`
+- host plus path: `http://localhost:5064` plus `/api/storefront/context`
+
+Do not combine both forms into `http://localhost:5064/api/storefront/api/storefront/...`.
+
+## Data Prerequisites
+
+The examples below use the demo identifiers `WEB-SE`, `SE`, `tools`, `example-drill`, and `SKU-EXAMPLE-1`.
+
+Those identifiers exist in the in-memory demo store used by tests and contract smoke runs. The default local development configuration uses PostgreSQL, and EF migrations currently seed catalog status definitions only. A freshly migrated PostgreSQL database will not contain the demo channel, market, products, categories, or storefront product projections.
+
+For a quick contract smoke against the demo data, run `Platform.StorefrontApi` with:
+
+```powershell
+$env:Persistence__Provider = "InMemory"
+$env:ASPNETCORE_URLS = "http://localhost:5064"
+dotnet run --project .\src\Platform.StorefrontApi\Platform.StorefrontApi.csproj
+```
+
+For a live PostgreSQL smoke, create at least:
+
+- market `SE` with supported culture/currency
+- channel `WEB-SE` assigned to market `SE`
+- visible categories, products, variants, prices, and inventory
+- storefront product projections, either through the projection rebuild job or worker-processed refresh requests
+
+Product browse/detail endpoints read from `StorefrontProductProjection`, so admin writes alone are not enough for product smoke tests until projections have been built.
+
+The supported local PostgreSQL seed path is documented in [nexra-storefront-smoke.md](./nexra-storefront-smoke.md).
+
 ## 1. Resolve Context
 
 Endpoint:
@@ -19,7 +61,7 @@ Purpose:
 Example:
 
 ```http
-GET /api/storefront/context?channel=WEB-SE&market=SE&culture=en-GB
+GET http://localhost:5064/api/storefront/context?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
 ```
 
 Response shape:
@@ -58,7 +100,7 @@ Recommended query parameters:
 Example:
 
 ```http
-GET /api/storefront/categories?channel=WEB-SE&market=SE&culture=en-GB
+GET http://localhost:5064/api/storefront/categories?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
 ```
 
 Response shape:
@@ -91,7 +133,7 @@ Purpose:
 Example:
 
 ```http
-GET /api/storefront/categories/drills?channel=WEB-SE&market=SE&culture=en-GB
+GET http://localhost:5064/api/storefront/categories/drills?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
 ```
 
 Response shape:
@@ -136,7 +178,7 @@ Recommended query parameters:
 Example:
 
 ```http
-GET /api/storefront/products?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK&category=tools&brand=ACME&q=drill&sort=name&page=1&pageSize=24
+GET http://localhost:5064/api/storefront/products?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK&category=tools&brand=ACME&q=drill&sort=name&page=1&pageSize=24
 ```
 
 Response shape:
@@ -189,7 +231,7 @@ Purpose:
 Example:
 
 ```http
-GET /api/storefront/products/example-drill?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK
+GET http://localhost:5064/api/storefront/products/example-drill?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
 ```
 
 Response shape:
@@ -235,7 +277,7 @@ Purpose:
 Example:
 
 ```http
-GET /api/storefront/products/by-number/SKU-EXAMPLE-1?channel=WEB-SE&market=SE&culture=en-GB&currency=SEK
+GET http://localhost:5064/api/storefront/products/by-number/SKU-EXAMPLE-1?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
 ```
 
 Behavior notes:
@@ -260,3 +302,7 @@ Implemented today:
 4. product list/search
 5. product detail by slug
 6. product detail by product number
+
+## Nexra Smoke Status
+
+The read-only Nexra smoke has passed against the local PostgreSQL smoke seed. Use [nexra-storefront-smoke.md](./nexra-storefront-smoke.md) for the tested seed data and URLs.

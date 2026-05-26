@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIntegrationJobAdminApplicationService, IntegrationJobAdminApplicationService>();
         services.AddScoped<IIntegrationJobExecutionService, IntegrationJobExecutionService>();
         services.AddScoped<IWebhookAdminApplicationService, WebhookAdminApplicationService>();
+        services.AddScoped<IStorefrontProjectionRefreshMessageAdminApplicationService, StorefrontProjectionRefreshMessageAdminApplicationService>();
         services.AddScoped<IWebhookOutboxExecutionService, WebhookOutboxExecutionService>();
         services.AddScoped<IWebhookDeliveryExecutionService, WebhookDeliveryExecutionService>();
         services.AddScoped<IOutboxEventPublisher, OutboxEventPublisher>();

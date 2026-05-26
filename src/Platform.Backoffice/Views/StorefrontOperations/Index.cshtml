@@ -1,0 +1,157 @@
+@using Platform.Contracts.Integrations
+@model StorefrontRefreshMessageListPageViewModel
+@{
+    ViewData["Title"] = "Storefront Operations";
+    ViewData["PageTitle"] = "Storefront Operations";
+}
+
+<section class="hero-panel">
+    <div>
+        <div class="eyebrow">Storefront</div>
+        <h2>Projection Refreshes</h2>
+        <p>Monitor queued, delayed, and abandoned projection refresh work.</p>
+    </div>
+    <div class="hero-meta">
+        <span class="status-pill">@Model.Total total</span>
+    </div>
+</section>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="validation-summary"></div>
+}
+
+<section class="panel">
+    <form method="get" class="editor-grid compact-grid">
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                <option value="open" selected="@(Model.Status == "open")">Open</option>
+                <option value="Pending" selected="@(Model.Status == StorefrontProjectionRefreshMessageStatuses.Pending)">Pending</option>
+                <option value="Delayed" selected="@(Model.Status == StorefrontProjectionRefreshMessageStatuses.Delayed)">Delayed</option>
+                <option value="Abandoned" selected="@(Model.Status == StorefrontProjectionRefreshMessageStatuses.Abandoned)">Abandoned</option>
+                <option value="Published" selected="@(Model.Status == StorefrontProjectionRefreshMessageStatuses.Published)">Published</option>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Sort</span>
+            <select name="sort">
+                <option value="occurredAtUtc" selected="@(Model.Sort == "occurredAtUtc")">Oldest first</option>
+                <option value="-occurredAtUtc" selected="@(Model.Sort == "-occurredAtUtc")">Newest first</option>
+                <option value="-updatedAtUtc" selected="@(Model.Sort == "-updatedAtUtc")">Recently updated</option>
+                <option value="-attempts" selected="@(Model.Sort == "-attempts")">Most attempts</option>
+            </select>
+        </label>
+
+        <div class="form-actions">
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+            <button type="submit" class="button button-secondary">Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Next attempt</th>
+                    <th>Updated</th>
+                    <th>Last error</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Messages.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" class="empty-state">No storefront refresh messages found.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var message in Model.Messages)
+                {
+                    <tr>
+                        <td>
+                            <div class="table-primary">@message.AggregateType</div>
+                            <div class="table-secondary">@message.AggregateId</div>
+                            <div class="table-secondary">@message.Id</div>
+                        </td>
+                        <td><span class="status-pill">@message.Status</span></td>
+                        <td>@message.ProcessingAttemptCount</td>
+                        <td>@(message.NextProcessingAttemptAtUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                        <td>@message.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(message.LastProcessingError))
+                            {
+                                <span>-</span>
+                            }
+                            else
+                            {
+                                <span title="@message.LastProcessingError">@Truncate(message.LastProcessingError, 140)</span>
+                            }
+                        </td>
+                        <td class="action-cell">
+                            @if (message.Status == StorefrontProjectionRefreshMessageStatuses.Abandoned)
+                            {
+                                <form method="post" asp-action="Reset" asp-route-id="@message.Id">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="rowVersion" value="@message.RowVersion" />
+                                    <input type="hidden" name="status" value="@Model.Status" />
+                                    <input type="hidden" name="sort" value="@Model.Sort" />
+                                    <input type="hidden" name="page" value="@Model.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                    <button type="submit" class="button button-secondary">Reset</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="pager">
+            @if (Model.HasPreviousPage)
+            {
+                <a class="button button-ghost"
+                   asp-action="Index"
+                   asp-route-status="@Model.Status"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-page="@(Model.Page - 1)"
+                   asp-route-pageSize="@Model.PageSize">Previous</a>
+            }
+            <span class="table-secondary">Page @Model.Page of @Model.TotalPages</span>
+            @if (Model.HasNextPage)
+            {
+                <a class="button button-ghost"
+                   asp-action="Index"
+                   asp-route-status="@Model.Status"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-page="@(Model.Page + 1)"
+                   asp-route-pageSize="@Model.PageSize">Next</a>
+            }
+        </div>
+    }
+</section>
+
+@functions {
+    private static string Truncate(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value[..maxLength] + "...";
+    }
+}

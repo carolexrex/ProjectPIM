@@ -51,7 +51,9 @@ function Stop-TrackedProcess {
 }
 
 Stop-TrackedProcess -Name "api"
+Stop-TrackedProcess -Name "storefront-api"
 Stop-TrackedProcess -Name "backoffice"
+Stop-TrackedProcess -Name "worker"
 
 if (-not $KeepDatabase) {
     $existingName = (& docker ps -a --format "{{.Names}}" | Where-Object { $_ -eq $postgresContainerName } | Select-Object -First 1)

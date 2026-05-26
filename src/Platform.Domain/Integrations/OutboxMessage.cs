@@ -103,6 +103,27 @@ public sealed class OutboxMessage
         Touch();
     }
 
+    public void ResetProcessingForReplay(string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        if (PublishedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("The outbox message is already published.");
+        }
+
+        if (!ProcessingAbandonedAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("Only abandoned outbox message processing can be reset.");
+        }
+
+        ProcessingAttemptCount = 0;
+        LastProcessingError = null;
+        NextProcessingAttemptAtUtc = null;
+        ProcessingAbandonedAtUtc = null;
+        Touch();
+    }
+
     private void EnsureRowVersion(string rowVersion)
     {
         if (!string.Equals(RowVersion, rowVersion, StringComparison.Ordinal))

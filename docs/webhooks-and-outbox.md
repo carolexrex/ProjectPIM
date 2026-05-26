@@ -32,6 +32,14 @@ Internal storefront refresh messages record processing state:
 - delay retries with `NextProcessingAttemptAtUtc`
 - abandon repeated failures so one bad refresh cannot consume worker capacity indefinitely
 
+Current admin operator surface:
+
+- `GET /api/admin/storefront-projection-refresh-messages`
+- `GET /api/admin/storefront-projection-refresh-messages/{id}`
+- `POST /api/admin/storefront-projection-refresh-messages/{id}/reset`
+
+The list endpoint supports `status` filters of `open`, `pending`, `delayed`, `abandoned`, and `published`. The backoffice exposes the same view under `Storefront Ops`. Reset is intentionally limited to abandoned storefront refresh messages. It clears retry/error/abandoned state and makes the message runnable for the worker again; it does not mark the message published.
+
 ## Delivery Lifecycle
 
 Webhook delivery records move through these states:
@@ -105,5 +113,5 @@ Each payload includes:
 - The outbox message and aggregate mutation are written in the same unit of work.
 - Worker delivery is intentionally decoupled from the write path.
 - Internal outbox processors and webhook fanout use event-type-specific reads; avoid broad unpublished-message polling in new worker paths.
-- Admin delivery detail views are the primary operational surface today.
+- Admin webhook delivery detail views and the storefront refresh operations view are the primary operational surfaces today.
 - Replay is meant for controlled recovery, not bulk redrive automation.

@@ -52,3 +52,9 @@ public sealed class ReplayWebhookDeliveryRequest
     [Required]
     public string RowVersion { get; init; } = string.Empty;
 }
+
+public sealed class ResetStorefrontProjectionRefreshMessageRequest
+{
+    [Required]
+    public string RowVersion { get; init; } = string.Empty;
+}

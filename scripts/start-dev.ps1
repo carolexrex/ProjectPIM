@@ -13,15 +13,21 @@ $logRoot = Join-Path $runtimeRoot "logs"
 $dotnetCliHome = Join-Path $repoRoot ".dotnet-cli"
 
 $apiProjectRoot = Join-Path $repoRoot "src\Platform.Api"
+$storefrontApiProjectRoot = Join-Path $repoRoot "src\Platform.StorefrontApi"
 $backofficeProjectRoot = Join-Path $repoRoot "src\Platform.Backoffice"
+$workerProjectRoot = Join-Path $repoRoot "src\Platform.Worker"
 $infrastructureProject = Join-Path $repoRoot "src\Platform.Infrastructure\Platform.Infrastructure.csproj"
 $solutionPath = Join-Path $repoRoot "Platform.slnx"
 $apiDll = Join-Path $apiProjectRoot "bin\Debug\net10.0\Platform.Api.dll"
+$storefrontApiDll = Join-Path $storefrontApiProjectRoot "bin\Debug\net10.0\Platform.StorefrontApi.dll"
 $backofficeDll = Join-Path $backofficeProjectRoot "bin\Debug\net10.0\Platform.Backoffice.dll"
+$workerDll = Join-Path $workerProjectRoot "bin\Debug\net10.0\Platform.Worker.dll"
 
 $apiUrl = "http://localhost:5053/"
+$storefrontApiUrl = "http://localhost:5064/"
 $backofficeUrl = "http://localhost:5168/"
 $apiProbeUrl = $apiUrl
+$storefrontApiProbeUrl = $storefrontApiUrl
 $backofficeProbeUrl = "${backofficeUrl}auth/login"
 $postgresContainerName = "projektpim-postgres"
 $postgresImage = "postgres:17"
@@ -142,7 +148,7 @@ function Start-ManagedDotnetProcess {
         [string]$Name,
         [string]$WorkingDirectory,
         [string]$ApplicationDll,
-        [string]$Url
+        [string]$Url = ""
     )
 
     $pidFile = Join-Path $pidRoot "$Name.pid"
@@ -161,9 +167,13 @@ function Start-ManagedDotnetProcess {
 
     Write-Step "Starting $Name"
     $previousEnvironment = $env:ASPNETCORE_ENVIRONMENT
+    $previousDotnetEnvironment = $env:DOTNET_ENVIRONMENT
     $previousUrls = $env:ASPNETCORE_URLS
     $env:ASPNETCORE_ENVIRONMENT = "Development"
-    $env:ASPNETCORE_URLS = $Url
+    $env:DOTNET_ENVIRONMENT = "Development"
+    if (-not [string]::IsNullOrWhiteSpace($Url)) {
+        $env:ASPNETCORE_URLS = $Url
+    }
 
     $process = Start-Process `
         -FilePath "dotnet" `
@@ -178,6 +188,13 @@ function Start-ManagedDotnetProcess {
     }
     else {
         $env:ASPNETCORE_ENVIRONMENT = $previousEnvironment
+    }
+
+    if ($null -eq $previousDotnetEnvironment) {
+        Remove-Item Env:DOTNET_ENVIRONMENT -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:DOTNET_ENVIRONMENT = $previousDotnetEnvironment
     }
 
     if ($null -eq $previousUrls) {
@@ -269,22 +286,35 @@ if (-not (Test-Path $apiDll)) {
     throw "Built API assembly was not found at '$apiDll'."
 }
 
+if (-not (Test-Path $storefrontApiDll)) {
+    throw "Built Storefront API assembly was not found at '$storefrontApiDll'."
+}
+
 if (-not (Test-Path $backofficeDll)) {
     throw "Built Backoffice assembly was not found at '$backofficeDll'."
 }
 
+if (-not (Test-Path $workerDll)) {
+    throw "Built Worker assembly was not found at '$workerDll'."
+}
+
 Start-ManagedDotnetProcess -Name "api" -WorkingDirectory $apiProjectRoot -ApplicationDll $apiDll -Url $apiUrl
+Start-ManagedDotnetProcess -Name "storefront-api" -WorkingDirectory $storefrontApiProjectRoot -ApplicationDll $storefrontApiDll -Url $storefrontApiUrl
 Start-ManagedDotnetProcess -Name "backoffice" -WorkingDirectory $backofficeProjectRoot -ApplicationDll $backofficeDll -Url $backofficeUrl
+Start-ManagedDotnetProcess -Name "worker" -WorkingDirectory $workerProjectRoot -ApplicationDll $workerDll
 
 Wait-ForHttpEndpoint -Name "api" -Url $apiProbeUrl
+Wait-ForHttpEndpoint -Name "storefront-api" -Url $storefrontApiProbeUrl
 Wait-ForHttpEndpoint -Name "backoffice" -Url $backofficeProbeUrl
 
 Write-Host ""
 Write-Host "Development stack is running."
-Write-Host "API:        $apiUrl"
-Write-Host "Backoffice: $backofficeUrl"
-Write-Host "Logs:       $logRoot"
-Write-Host "Stop with:  ./scripts/stop-dev.ps1"
+Write-Host "Admin API:      $apiUrl"
+Write-Host "Storefront API: $storefrontApiUrl"
+Write-Host "Backoffice:     $backofficeUrl"
+Write-Host "Worker:         running"
+Write-Host "Logs:           $logRoot"
+Write-Host "Stop with:      ./scripts/stop-dev.ps1"
 
 if ($OpenBackoffice) {
     Start-Process $backofficeUrl | Out-Null
