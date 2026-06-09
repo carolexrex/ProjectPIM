@@ -39,5 +39,6 @@ public enum StorefrontContextResolutionStatus
 {
     Success = 0,
     NotFound = 1,
-    ValidationFailed = 2
+    ValidationFailed = 2,
+    Unauthorized = 3
 }

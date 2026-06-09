@@ -31,6 +31,25 @@ public sealed class InMemoryStorefrontProductProjectionRepository : IStorefrontP
         return Task.FromResult(items);
     }
 
+    public Task<IReadOnlyList<StorefrontProductProjection>> ListByContextAsync(
+        Guid marketId,
+        string cultureCode,
+        string currencyCode,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IReadOnlyList<StorefrontProductProjection> items = _store.StorefrontProductProjections.Values
+            .Where(x =>
+                x.MarketId == marketId
+                && string.Equals(x.CultureCode, cultureCode, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(x.CurrencyCode, currencyCode, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.SortProductNumber, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return Task.FromResult(items);
+    }
+
     public Task<IReadOnlyList<StorefrontProductProjection>> ListByProductIdAsync(Guid productId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

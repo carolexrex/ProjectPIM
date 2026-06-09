@@ -26,6 +26,19 @@ public sealed class EfStorefrontProductProjectionRepository : IStorefrontProduct
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<StorefrontProductProjection>> ListByContextAsync(
+        Guid marketId,
+        string cultureCode,
+        string currencyCode,
+        CancellationToken cancellationToken)
+    {
+        return await _dbContext.StorefrontProductProjections
+            .AsNoTracking()
+            .Where(x => x.MarketId == marketId && x.CultureCode == cultureCode && x.CurrencyCode == currencyCode)
+            .OrderBy(x => x.SortProductNumber)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<StorefrontProductProjection>> ListByProductIdAsync(Guid productId, CancellationToken cancellationToken)
     {
         return await _dbContext.StorefrontProductProjections

@@ -23,6 +23,18 @@ Use one URL convention in a connector:
 
 Do not combine both forms into `http://localhost:5064/api/storefront/api/storefront/...`.
 
+## Security Model
+
+Current local smoke flows assume public storefront catalog reads. Production deployments should choose a storefront catalog read mode per project/channel:
+
+- `Public`: open catalog reads, controlled with CORS, rate limits, and gateway rules.
+- `TrustedClientsOnly`: API key or OAuth client credentials for CMS/server-side consumers.
+- `Private`: authenticated shopper/customer token for private or B2B catalogs.
+
+Browser-visible API keys are not secrets. They can identify the frontend app, but they do not protect private catalog data.
+
+Cart creation returns a signed `cartAccessToken`. Storefront clients must send that token in `X-Storefront-Cart-Token` when reading, repricing, or checking out the cart. `rowVersion` is only optimistic concurrency control; it is not an ownership secret. Configure `StorefrontSecurity:CartAccessToken:SigningKey` for stable multi-instance or restart-safe cart tokens. If it is omitted, local development uses an ephemeral process-local signing key.
+
 ## Data Prerequisites
 
 The examples below use the demo identifiers `WEB-SE`, `SE`, `tools`, `example-drill`, and `SKU-EXAMPLE-1`.
@@ -285,11 +297,142 @@ Behavior notes:
 - this endpoint returns the same detail payload as slug lookup
 - market visibility rules are identical to `GET /api/storefront/products/{slug}`
 
+## 7. Create Cart
+
+Endpoint:
+
+- `POST /api/storefront/carts`
+
+Purpose:
+
+- create a priced storefront cart for the resolved market/culture/currency context
+
+Example:
+
+```http
+POST http://localhost:5064/api/storefront/carts?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
+```
+
+```json
+{
+  "email": "buyer@example.com",
+  "lines": [
+    {
+      "variantId": "50000000-0000-0000-0000-000000000011",
+      "quantity": 1
+    }
+  ],
+  "addresses": [
+    {
+      "type": "Billing",
+      "firstName": "Alicia",
+      "lastName": "Buyer",
+      "line1": "Sveavagen 10",
+      "postalCode": "11157",
+      "city": "Stockholm",
+      "countryCode": "SE",
+      "email": "buyer@example.com"
+    },
+    {
+      "type": "Shipping",
+      "firstName": "Alicia",
+      "lastName": "Buyer",
+      "line1": "Sveavagen 10",
+      "postalCode": "11157",
+      "city": "Stockholm",
+      "countryCode": "SE",
+      "email": "buyer@example.com"
+    }
+  ]
+}
+```
+
+Behavior notes:
+
+- the endpoint resolves context with the same `channel`, `market`, `culture`, and `currency` parameters used by product reads
+- cart lines must use storefront-visible and buyable variant ids from product detail responses
+- line quantity must not exceed projected available quantity unless the variant is backorderable
+- prices are resolved from active market price lists
+- the response includes a `rowVersion` used by later cart actions and a `cartAccessToken` used as cart ownership proof
+
+## 8. Get Cart
+
+Endpoint:
+
+- `GET /api/storefront/carts/{id}`
+
+Purpose:
+
+- return the current storefront cart snapshot
+
+Example:
+
+```http
+GET http://localhost:5064/api/storefront/carts/{cartId}
+X-Storefront-Cart-Token: {cartAccessToken}
+```
+
+## 9. Reprice Cart
+
+Endpoint:
+
+- `POST /api/storefront/carts/{id}/reprice`
+
+Purpose:
+
+- refresh line pricing before checkout or after a client-held cart becomes stale
+
+Example:
+
+```http
+POST http://localhost:5064/api/storefront/carts/{cartId}/reprice
+X-Storefront-Cart-Token: {cartAccessToken}
+```
+
+```json
+{
+  "rowVersion": "..."
+}
+```
+
+## 10. Checkout Cart
+
+Endpoint:
+
+- `POST /api/storefront/carts/{id}/checkout`
+
+Purpose:
+
+- convert an active storefront cart into an order
+
+Example:
+
+```http
+POST http://localhost:5064/api/storefront/carts/{cartId}/checkout
+X-Storefront-Cart-Token: {cartAccessToken}
+```
+
+```json
+{
+  "rowVersion": "..."
+}
+```
+
+Behavior notes:
+
+- checkout reprices the cart and converts it to an order in the same application flow
+- checkout requires the cart access token in `X-Storefront-Cart-Token`
+- checkout requires cart email plus `Billing` and `Shipping` addresses
+- checkout revalidates line buyability against the current storefront projection before conversion
+- checkout is idempotent by source cart id; repeating checkout for an already converted cart returns the existing order
+- payment initiation is not implemented in this slice
+
 ## Error Handling
 
 Current error patterns:
 
 - `400` when the storefront context is invalid
+- `401` when cart access token ownership proof is missing or invalid
 - `404` when the requested channel, market, category, brand, or product does not exist in the resolved context
 
 ## Current Coverage
@@ -302,6 +445,27 @@ Implemented today:
 4. product list/search
 5. product detail by slug
 6. product detail by product number
+7. storefront cart creation/read/reprice
+8. storefront cart checkout into an order
+
+## Next Smoke
+
+The next planned validation step is a live cart/checkout smoke from the consuming storefront or Nexra side against:
+
+- `http://localhost:5064/api/storefront`
+
+Smoke checklist:
+
+1. resolve storefront context
+2. read product detail for a visible and buyable variant
+3. create a cart and store the returned `rowVersion` and `cartAccessToken`
+4. call `GET /carts/{cartId}` with `X-Storefront-Cart-Token`
+5. call `POST /carts/{cartId}/reprice` with `X-Storefront-Cart-Token` and the latest `rowVersion`
+6. call `POST /carts/{cartId}/checkout` with `X-Storefront-Cart-Token` and the latest `rowVersion`
+7. repeat checkout to verify idempotency by source cart id
+8. confirm missing or invalid `X-Storefront-Cart-Token` returns `401`
+
+Do this before starting payment initiation/callbacks or fuller cart mutation endpoints.
 
 ## Nexra Smoke Status
 

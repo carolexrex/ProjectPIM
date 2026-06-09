@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PIM Backoffice — UX Direction Mockup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-bg: #141c2e;
+      --sidebar-border: rgba(255,255,255,0.06);
+      --sidebar-text: #94a3b8;
+      --sidebar-hover-bg: rgba(255,255,255,0.05);
+      --sidebar-active-bg: rgba(99,102,241,0.14);
+      --sidebar-active-text: #a5b4fc;
+      --sidebar-group-label: #475569;
+
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-raised: #f8fafc;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+
+      --accent: #6366f1;
+      --accent-dark: #4f46e5;
+      --accent-light: #eef2ff;
+      --accent-ring: rgba(99,102,241,0.15);
+
+      --pill-active-bg: #dcfce7;   --pill-active-fg: #15803d;
+      --pill-draft-bg:  #fef9c3;   --pill-draft-fg:  #a16207;
+      --pill-archived-bg: #f1f5f9; --pill-archived-fg: #64748b;
+      --pill-discontinued-bg: #fee2e2; --pill-discontinued-fg: #b91c1c;
+
+      --danger-bg: #fff1f2;
+      --danger-border: #fecdd3;
+      --danger-text: #9f1239;
+      --danger-btn: #e11d48;
+
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --shadow-sm: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+      --shadow-md: 0 4px 16px rgba(15,23,42,.08);
+    }
+
+    body {
+      font-family: -apple-system, "Inter", "Segoe UI Variable Text", system-ui, sans-serif;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ─── SHELL ─────────────────────────────────── */
+    .shell {
+      display: grid;
+      grid-template-columns: 216px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ─── SIDEBAR ───────────────────────────────── */
+    .sidebar {
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 18px 14px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--sidebar-border);
+      flex-shrink: 0;
+    }
+
+    .logo-mark {
+      width: 30px; height: 30px;
+      background: var(--accent);
+      border-radius: var(--r-sm);
+      display: grid; place-items: center;
+      font-size: 10px; font-weight: 700;
+      color: white; letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    .logo-name { font-size: 13.5px; font-weight: 600; color: #f1f5f9; }
+    .logo-sub  { font-size: 11px; color: var(--sidebar-group-label); margin-top: 1px; }
+
+    .sidebar-nav {
+      padding: 12px 10px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .nav-group-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--sidebar-group-label);
+      padding: 0 8px 5px;
+    }
+
+    .nav-items { display: flex; flex-direction: column; gap: 1px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 8px;
+      border-radius: var(--r-sm);
+      color: var(--sidebar-text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .nav-item:hover { background: var(--sidebar-hover-bg); color: #e2e8f0; }
+    .nav-item.active {
+      background: var(--sidebar-active-bg);
+      color: var(--sidebar-active-text);
+      font-weight: 500;
+    }
+    .nav-dot {
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      background: rgba(148,163,184,0.18);
+      flex-shrink: 0;
+    }
+    .nav-item.active .nav-dot { background: rgba(165,180,252,0.3); }
+
+    .sidebar-footer {
+      padding: 10px;
+      border-top: 1px solid var(--sidebar-border);
+      flex-shrink: 0;
+    }
+
+    .user-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px;
+      border-radius: var(--r-sm);
+    }
+    .user-avatar {
+      width: 26px; height: 26px;
+      background: rgba(99,102,241,0.25);
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 10.5px; font-weight: 700;
+      color: #a5b4fc; flex-shrink: 0;
+    }
+    .user-name  { font-size: 12.5px; color: #e2e8f0; line-height: 1.2; }
+    .user-email { font-size: 11px; color: var(--sidebar-group-label); }
+
+    /* ─── MAIN ──────────────────────────────────── */
+    .main { display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
+
+    /* Topbar */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 52px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+      position: sticky; top: 0; z-index: 20;
+      flex-shrink: 0;
+    }
+
+    .breadcrumbs {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--text-muted);
+    }
+    .breadcrumbs .sep { color: var(--border-strong); }
+    .breadcrumbs .current { color: var(--text); font-weight: 500; }
+
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+
+    .topbar-btn {
+      height: 32px; padding: 0 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 12.5px; font-family: inherit;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .topbar-btn:hover { background: var(--bg); color: var(--text); }
+
+    /* Content */
+    .content { padding: 24px; flex: 1; }
+
+    /* Demo switcher */
+    .demo-switcher {
+      display: flex; gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 3px;
+      width: fit-content;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .demo-tab {
+      padding: 5px 14px;
+      border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.1s;
+    }
+    .demo-tab.active { background: var(--accent); color: white; }
+    .demo-tab:hover:not(.active) { background: var(--bg); color: var(--text); }
+
+    .demo-view { display: none; }
+    .demo-view.active { display: block; }
+
+    /* Page header */
+    .page-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 18px; gap: 16px;
+    }
+    .page-title { font-size: 20px; font-weight: 700; color: var(--text); }
+    .page-desc  { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 0 14px; height: 34px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px; font-weight: 500;
+      cursor: pointer; border: none;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.1s, box-shadow 0.1s;
+    }
+    .btn-primary {
+      background: var(--accent); color: white;
+      box-shadow: 0 1px 2px rgba(99,102,241,0.3);
+    }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+    }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-danger-outline {
+      background: transparent;
+      border: 1px solid var(--danger-border);
+      color: var(--danger-btn);
+    }
+    .btn-danger-outline:hover { background: var(--danger-bg); }
+    .btn-sm { height: 30px; padding: 0 10px; font-size: 12.5px; }
+
+    /* Filters bar */
+    .filters-bar {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: flex-end;
+      flex-wrap: wrap;
+      background: var(--surface-raised);
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 3px; }
+    .filter-label {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+    .filter-control {
+      height: 32px; padding: 0 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      color: var(--text); font-size: 13px;
+      font-family: inherit; outline: none;
+    }
+    .filter-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .filter-search { min-width: 220px; }
+    .filter-select { min-width: 128px; }
+    .filter-spacer { flex: 1; min-width: 12px; }
+
+    /* Stats strip */
+    .stats-strip {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 24px;
+      background: var(--surface);
+    }
+    .stat-item {}
+    .stat-val {
+      font-size: 17px; font-weight: 700;
+      color: var(--text); line-height: 1.1;
+    }
+    .stat-lbl { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 9px 12px;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted);
+      background: var(--surface-raised);
+      border-bottom: 1px solid var(--border);
+      text-align: left; white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 16px; }
+    thead th:last-child  { padding-right: 16px; text-align: right; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child  { border-bottom: none; }
+    tbody tr:hover       { background: #f8fafc; }
+    tbody td {
+      padding: 11px 12px;
+      vertical-align: middle; font-size: 13.5px;
+    }
+    tbody td:first-child { padding-left: 16px; }
+    tbody td:last-child  { padding-right: 16px; text-align: right; }
+    .cell-primary   { font-weight: 600; color: var(--text); }
+    .cell-secondary { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+    .cell-mono      { font-family: "Consolas", "SF Mono", monospace; font-size: 12.5px; color: var(--text-muted); }
+
+    /* Status pills — SEMANTIC */
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11.5px; font-weight: 600;
+      white-space: nowrap;
+    }
+    .pill-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .pill-active       { background: var(--pill-active-bg);       color: var(--pill-active-fg); }
+    .pill-active .pill-dot { background: var(--pill-active-fg); }
+    .pill-draft        { background: var(--pill-draft-bg);         color: var(--pill-draft-fg); }
+    .pill-draft .pill-dot  { background: var(--pill-draft-fg); }
+    .pill-archived     { background: var(--pill-archived-bg);      color: var(--pill-archived-fg); }
+    .pill-archived .pill-dot { background: var(--pill-archived-fg); }
+    .pill-discontinued { background: var(--pill-discontinued-bg);  color: var(--pill-discontinued-fg); }
+    .pill-discontinued .pill-dot { background: var(--pill-discontinued-fg); }
+
+    /* Pagination */
+    .pagination-bar {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+      background: var(--surface-raised);
+    }
+    .page-info { font-size: 12.5px; color: var(--text-muted); }
+    .page-controls { display: flex; gap: 3px; }
+    .page-btn {
+      min-width: 30px; height: 30px;
+      padding: 0 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12.5px; font-family: inherit;
+      cursor: pointer; display: grid; place-items: center;
+      transition: background 0.1s;
+    }
+    .page-btn.active { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+    .page-btn:hover:not(.active) { background: var(--bg); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ─── DETAIL VIEW ───────────────────────────── */
+    .detail-hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .detail-hero-body {
+      padding: 20px 22px 0;
+      display: flex; justify-content: space-between;
+      align-items: flex-start; gap: 16px;
+    }
+
+    .detail-eyebrow {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted); margin-bottom: 5px;
+    }
+    .detail-title { font-size: 22px; font-weight: 700; color: var(--text); }
+    .detail-meta {
+      display: flex; align-items: center;
+      gap: 14px; margin-top: 7px; flex-wrap: wrap;
+    }
+    .detail-meta-item { font-size: 12.5px; color: var(--text-muted); }
+    .detail-meta-sep { color: var(--border-strong); }
+
+    .detail-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 4px; }
+
+    /* Detail tabs */
+    .detail-tabs {
+      display: flex; gap: 0;
+      padding: 0 22px;
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .detail-tab {
+      padding: 11px 14px;
+      font-size: 13px; font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .detail-tab:hover:not(.active) { color: var(--text); }
+    .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Detail tab content */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Two-col detail layout */
+    .detail-cols {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* Form sections */
+    .form-section { padding: 20px 20px 16px; }
+    .form-section + .form-section { border-top: 1px solid var(--border); }
+    .section-title {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-subtle); margin-bottom: 14px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .col-span-2  { grid-column: span 2; }
+    .col-span-3  { grid-column: span 3; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-field label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    .form-field input, .form-field select, .form-field textarea {
+      height: 34px; padding: 0 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      color: var(--text); font-size: 13.5px;
+      font-family: inherit; outline: none;
+    }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .form-field input[readonly] {
+      background: var(--surface-raised);
+      color: var(--text-muted); cursor: default;
+    }
+    .form-field textarea { height: auto; padding: 8px 10px; resize: vertical; }
+    .field-hint { font-size: 11.5px; color: var(--text-subtle); margin-top: 2px; }
+
+    .form-actions { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border); }
+
+    /* Tag-based category picker */
+    .tag-area {
+      min-height: 68px; padding: 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      display: flex; flex-wrap: wrap;
+      gap: 5px; align-content: flex-start;
+      cursor: text;
+    }
+    .tag-area:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px;
+      background: var(--accent-light); color: var(--accent);
+      border-radius: 999px; font-size: 12px; font-weight: 500;
+    }
+    .tag-x { cursor: pointer; opacity: 0.55; font-size: 13px; line-height: 1; }
+    .tag-x:hover { opacity: 1; }
+    .tag-placeholder { font-size: 12.5px; color: var(--text-subtle); padding: 4px 2px; align-self: center; }
+
+    /* Danger zone */
+    .danger-zone {
+      margin: 0 20px 20px;
+      padding: 14px 16px;
+      border: 1px solid var(--danger-border);
+      border-radius: var(--r-md);
+      background: var(--danger-bg);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+    }
+    .danger-zone-label { font-size: 13.5px; font-weight: 600; color: var(--danger-text); margin-bottom: 2px; }
+    .danger-zone-desc  { font-size: 12.5px; color: #be123c; }
+
+    /* Inline table-form pattern */
+    .panel-toolbar {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+    }
+    .panel-toolbar-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .panel-toolbar-meta  { font-size: 12.5px; color: var(--text-muted); }
+
+    /* Empty state */
+    .empty-state {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* Note box */
+    .ux-note {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--r-md);
+      padding: 10px 14px;
+      font-size: 12.5px; color: #1d4ed8;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .ux-note strong { font-weight: 600; }
+
+    .chip {
+      display: inline-block;
+      background: rgba(99,102,241,0.1);
+      color: var(--accent);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ═══ SIDEBAR ════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">PIM</div>
+      <div>
+        <div class="logo-name">Platform</div>
+        <div class="logo-sub">Backoffice</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <div class="nav-group">
+        <div class="nav-group-label">Catalog</div>
+        <div class="nav-items">
+          <div class="nav-item active">
+            <div class="nav-dot"></div> Products
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Brands
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Categories
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Attributes
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Media
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Commerce</div>
+        <div class="nav-items">
+          <div class="nav-item">
+            <div class="nav-dot"></div> Price Lists
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Inventory
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Orders
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Carts
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Customers
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Companies
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Configuration</div>
+        <div class="nav-items">
+          <div class="nav-item">
+            <div class="nav-dot"></div> Markets
+          </div>
+          <div class="nav-item">
+            <div class="nav-dot"></div> Channels
+          </div>
+        </div>
+      </div>
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-row">
+        <div class="user-avatar">AV</div>
+        <div>
+          <div class="user-name">Alexander V.</div>
+          <div class="user-email">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="breadcrumbs" id="breadcrumb-area">
+        <span>Products</span>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn">API Docs</button>
+        <button class="topbar-btn">Sign Out</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- Demo switcher (not part of the real UI) -->
+      <div class="ux-note">
+        <strong>UX Direction Mockup</strong> — this is a static HTML prototype demonstrating palette, navigation grouping, semantic status pills, pagination, and tabbed product detail. Toggle between the two views below.
+      </div>
+
+      <div class="demo-switcher">
+        <div class="demo-tab active" onclick="switchView('list', this)">Product List</div>
+        <div class="demo-tab" onclick="switchView('detail', this)">Product Detail</div>
+      </div>
+
+      <!-- ════ VIEW: PRODUCT LIST ════════════════ -->
+      <div class="demo-view active" id="view-list">
+
+        <div class="page-header">
+          <div>
+            <div class="page-title">Products</div>
+            <div class="page-desc">Manage your catalog — 1,284 products total</div>
+          </div>
+          <button class="btn btn-primary">+ New Product</button>
+        </div>
+
+        <div class="card">
+          <!-- Filters -->
+          <div class="filters-bar">
+            <div class="filter-group">
+              <span class="filter-label">Search</span>
+              <input class="filter-control filter-search" type="search" placeholder="Product number, name…" value="boot" />
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Lifecycle</span>
+              <select class="filter-control filter-select">
+                <option>All</option>
+                <option selected>Active</option>
+                <option>Archived</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Catalog Status</span>
+              <select class="filter-control filter-select">
+                <option>All statuses</option>
+                <option>For Sale</option>
+                <option>Coming Soon</option>
+                <option>Discontinued</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Type</span>
+              <select class="filter-control filter-select">
+                <option>All types</option>
+                <option>Standard</option>
+                <option>Bundle</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Sort</span>
+              <select class="filter-control filter-select">
+                <option>Recently updated</option>
+                <option>Product number ↑</option>
+                <option>Product number ↓</option>
+                <option>Newest created</option>
+              </select>
+            </div>
+            <div class="filter-spacer"></div>
+            <button class="btn btn-ghost btn-sm">Reset</button>
+            <button class="btn btn-primary btn-sm">Apply</button>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats-strip">
+            <div class="stat-item">
+              <div class="stat-val">14</div>
+              <div class="stat-lbl">Matching</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">11</div>
+              <div class="stat-lbl">Active</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">9</div>
+              <div class="stat-lbl">With variants</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">8</div>
+              <div class="stat-lbl">Buyable</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">2</div>
+              <div class="stat-lbl">Archived</div>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Number</th>
+                  <th>Type</th>
+                  <th>Catalog Status</th>
+                  <th>Lifecycle</th>
+                  <th>Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Winter Trail Boot</div>
+                    <div class="cell-secondary">Hiking &amp; Trail · Nordic Edge</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-WT-001</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>For Sale</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-24 09:41</td>
+                  <td><button class="btn btn-ghost btn-sm" onclick="switchView('detail', null)">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Leather Ankle Boot</div>
+                    <div class="cell-secondary">Urban Collection · Nordic Edge</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-LA-004</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>For Sale</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-23 14:12</td>
+                  <td><button class="btn btn-ghost btn-sm" onclick="switchView('detail', null)">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Snow Boot Pro X</div>
+                    <div class="cell-secondary">Winter Series · Nordic Edge</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-SBP-009</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-draft"><span class="pill-dot"></span>Coming Soon</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-22 11:05</td>
+                  <td><button class="btn btn-ghost btn-sm">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Chelsea Boot Classic</div>
+                    <div class="cell-secondary">Urban Collection</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-CBC-002</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-discontinued"><span class="pill-dot"></span>Discontinued</span></td>
+                  <td><span class="pill pill-archived"><span class="pill-dot"></span>Archived</span></td>
+                  <td class="cell-secondary">2026-04-18 08:30</td>
+                  <td><button class="btn btn-ghost btn-sm">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Trail Runner Boot</div>
+                    <div class="cell-secondary">Hiking &amp; Trail</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-TR-017</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>For Sale</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-20 16:54</td>
+                  <td><button class="btn btn-ghost btn-sm">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Boot Bundle — Winter Kit</div>
+                    <div class="cell-secondary">Bundles</div>
+                  </td>
+                  <td><span class="cell-mono">BNDL-WK-003</span></td>
+                  <td>Bundle</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>For Sale</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-19 13:20</td>
+                  <td><button class="btn btn-ghost btn-sm">Open →</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="cell-primary">Classic Work Boot</div>
+                    <div class="cell-secondary">Workwear · Nordic Edge</div>
+                  </td>
+                  <td><span class="cell-mono">BOOT-CW-011</span></td>
+                  <td>Standard</td>
+                  <td><span class="pill pill-draft"><span class="pill-dot"></span>Coming Soon</span></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td class="cell-secondary">2026-05-18 10:00</td>
+                  <td><button class="btn btn-ghost btn-sm">Open →</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination-bar">
+            <div class="page-info">Showing 1–7 of 14 results</div>
+            <div class="page-controls">
+              <button class="page-btn" disabled>‹</button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">›</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /view-list -->
+
+      <!-- ════ VIEW: PRODUCT DETAIL ══════════════ -->
+      <div class="demo-view" id="view-detail">
+
+        <!-- Detail hero -->
+        <div class="detail-hero">
+          <div class="detail-hero-body">
+            <div>
+              <div class="detail-eyebrow">Product</div>
+              <div class="detail-title">Winter Trail Boot</div>
+              <div class="detail-meta">
+                <span class="pill pill-active"><span class="pill-dot"></span>Active</span>
+                <span class="pill pill-active"><span class="pill-dot"></span>For Sale</span>
+                <span class="detail-meta-item detail-meta-sep">|</span>
+                <span class="detail-meta-item">BOOT-WT-001</span>
+                <span class="detail-meta-item detail-meta-sep">|</span>
+                <span class="detail-meta-item">nordic-edge · winter-trail-boot</span>
+                <span class="detail-meta-item detail-meta-sep">|</span>
+                <span class="detail-meta-item">Updated 2026-05-24 09:41</span>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn btn-ghost" onclick="switchView('list', null)">← Products</button>
+              <button class="btn btn-primary">Save Changes</button>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="detail-tabs">
+            <div class="detail-tab active" onclick="switchTab('core', this)">Core</div>
+            <div class="detail-tab" onclick="switchTab('translations', this)">Translations</div>
+            <div class="detail-tab" onclick="switchTab('media', this)">Media</div>
+            <div class="detail-tab" onclick="switchTab('variants', this)">Variants <span style="font-size:11px;background:#e2e8f0;border-radius:999px;padding:1px 6px;margin-left:3px;color:#64748b;font-weight:600;">3</span></div>
+            <div class="detail-tab" onclick="switchTab('relations', this)">Relations</div>
+          </div>
+        </div>
+
+        <!-- TAB: CORE -->
+        <div class="tab-panel active" id="tab-core">
+          <div class="detail-cols">
+
+            <!-- Left: edit form -->
+            <div class="card">
+              <div class="form-section">
+                <div class="section-title">Identity</div>
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label>Product Number</label>
+                    <input type="text" value="BOOT-WT-001" readonly />
+                    <span class="field-hint">System-assigned, read-only</span>
+                  </div>
+                  <div class="form-field">
+                    <label>Slug</label>
+                    <input type="text" value="winter-trail-boot" />
+                  </div>
+                  <div class="form-field">
+                    <label>Brand</label>
+                    <select><option>Nordic Edge</option><option>Unbranded</option></select>
+                  </div>
+                  <div class="form-field">
+                    <label>Product Type</label>
+                    <input type="text" value="Standard" />
+                  </div>
+                  <div class="form-field">
+                    <label>Catalog Status</label>
+                    <select>
+                      <option selected>For Sale</option>
+                      <option>Coming Soon</option>
+                      <option>Discontinued</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label>Tax Category</label>
+                    <input type="text" value="VAT_25" />
+                  </div>
+                  <div class="form-field col-span-2">
+                    <label>Categories</label>
+                    <div class="tag-area">
+                      <span class="tag">Hiking &amp; Trail <span class="tag-x">×</span></span>
+                      <span class="tag">Winter Series <span class="tag-x">×</span></span>
+                      <span class="tag-placeholder">+ Add category…</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="section-title">Physical dimensions</div>
+                <div class="form-grid form-grid-3">
+                  <div class="form-field">
+                    <label>Weight (kg)</label>
+                    <input type="number" value="0.85" />
+                  </div>
+                  <div class="form-field">
+                    <label>Length (cm)</label>
+                    <input type="number" value="32" />
+                  </div>
+                  <div class="form-field">
+                    <label>Width (cm)</label>
+                    <input type="number" value="14" />
+                  </div>
+                  <div class="form-field">
+                    <label>Height (cm)</label>
+                    <input type="number" value="22" />
+                  </div>
+                  <div class="form-field">
+                    <label>Unit of Measure</label>
+                    <input type="text" value="pcs" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="section-title">Attributes</div>
+                <div class="form-grid">
+                  <div class="form-field">
+                    <label>Material</label>
+                    <select><option>Full-grain Leather</option><option>Synthetic</option></select>
+                  </div>
+                  <div class="form-field">
+                    <label>Waterproof Rating</label>
+                    <input type="text" value="IP67" />
+                  </div>
+                  <div class="form-field">
+                    <label>Sole Type</label>
+                    <select><option>Vibram</option><option>Rubber</option></select>
+                  </div>
+                  <div class="form-field">
+                    <label>Closure</label>
+                    <select><option>Lace-up</option><option>Zip</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button class="btn btn-primary">Save Product</button>
+                <button class="btn btn-ghost">Discard Changes</button>
+              </div>
+
+              <!-- Danger zone — separated, not buried in form -->
+              <div class="danger-zone">
+                <div>
+                  <div class="danger-zone-label">Archive Product</div>
+                  <div class="danger-zone-desc">Removes from all active channels. Cannot be undone from the UI.</div>
+                </div>
+                <button class="btn btn-danger-outline">Archive…</button>
+              </div>
+            </div>
+
+            <!-- Right: sidebar panels -->
+            <div style="display:flex;flex-direction:column;gap:14px;">
+
+              <div class="card">
+                <div class="panel-toolbar">
+                  <span class="panel-toolbar-title">Variants</span>
+                  <span class="panel-toolbar-meta">3 variants</span>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="cell-primary" style="font-size:13px;">BOOT-WT-001-BLK-41</div><div class="cell-secondary">Black · EU 41</div></td>
+                      <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                      <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="cell-primary" style="font-size:13px;">BOOT-WT-001-BLK-42</div><div class="cell-secondary">Black · EU 42</div></td>
+                      <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                      <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="cell-primary" style="font-size:13px;">BOOT-WT-001-BRN-41</div><div class="cell-secondary">Brown · EU 41</div></td>
+                      <td><span class="pill pill-draft"><span class="pill-dot"></span>Coming Soon</span></td>
+                      <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="padding:12px 16px;border-top:1px solid var(--border);">
+                  <button class="btn btn-ghost btn-sm">+ New Variant</button>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="panel-toolbar">
+                  <span class="panel-toolbar-title">Market Assignment</span>
+                </div>
+                <div style="padding:14px 16px;">
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                      <input type="checkbox" checked /> SE — Sweden (SEK)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                      <input type="checkbox" checked /> NO — Norway (NOK)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                      <input type="checkbox" /> DE — Germany (EUR)
+                    </label>
+                  </div>
+                  <div style="margin-top:12px;">
+                    <button class="btn btn-ghost btn-sm">Save Assignments</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: TRANSLATIONS -->
+        <div class="tab-panel" id="tab-translations">
+          <div class="card">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-title">Translations</span>
+              <button class="btn btn-ghost btn-sm">+ Add Language</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Culture</th>
+                  <th>Name</th>
+                  <th>SEO Title</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cell-mono">sv-SE</span></td>
+                  <td>Vinter Vandringskänga</td>
+                  <td>Bästa vinter vandringskänga 2026</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Complete</span></td>
+                  <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cell-mono">en-GB</span></td>
+                  <td>Winter Trail Boot</td>
+                  <td>Best winter trail boots 2026</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Complete</span></td>
+                  <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cell-mono">de-DE</span></td>
+                  <td>Winter Wanderstiefel</td>
+                  <td></td>
+                  <td><span class="pill pill-draft"><span class="pill-dot"></span>Partial</span></td>
+                  <td><button class="btn btn-ghost btn-sm">Edit</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB: MEDIA -->
+        <div class="tab-panel" id="tab-media">
+          <div class="card">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-title">Media</span>
+              <button class="btn btn-ghost btn-sm">+ Assign Asset</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Asset</th>
+                  <th>Type</th>
+                  <th>Primary</th>
+                  <th>Sort</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><div style="width:52px;height:52px;background:#e2e8f0;border-radius:6px;display:grid;place-items:center;font-size:10px;color:#94a3b8;">IMG</div></td>
+                  <td><div class="cell-primary">boot-wt-001-hero.jpg</div><div class="cell-secondary">Product hero shot</div></td>
+                  <td>Image</td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Yes</span></td>
+                  <td>1</td>
+                  <td><button class="btn btn-ghost btn-sm">Remove</button></td>
+                </tr>
+                <tr>
+                  <td><div style="width:52px;height:52px;background:#e2e8f0;border-radius:6px;display:grid;place-items:center;font-size:10px;color:#94a3b8;">IMG</div></td>
+                  <td><div class="cell-primary">boot-wt-001-side.jpg</div><div class="cell-secondary">Side profile</div></td>
+                  <td>Image</td>
+                  <td><span class="pill pill-archived"><span class="pill-dot"></span>No</span></td>
+                  <td>2</td>
+                  <td><button class="btn btn-ghost btn-sm">Remove</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB: VARIANTS -->
+        <div class="tab-panel" id="tab-variants">
+          <div class="card">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-title">Variants</span>
+              <button class="btn btn-ghost btn-sm">+ New Variant</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Attributes</th>
+                  <th>Status</th>
+                  <th>Default</th>
+                  <th>On Hand</th>
+                  <th>Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="cell-mono">BOOT-WT-001-BLK-41</span></td>
+                  <td><div class="cell-secondary">Black · EU 41</div></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td>Yes</td>
+                  <td>24</td>
+                  <td class="cell-secondary">2026-05-24</td>
+                  <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cell-mono">BOOT-WT-001-BLK-42</span></td>
+                  <td><div class="cell-secondary">Black · EU 42</div></td>
+                  <td><span class="pill pill-active"><span class="pill-dot"></span>Active</span></td>
+                  <td>No</td>
+                  <td>18</td>
+                  <td class="cell-secondary">2026-05-24</td>
+                  <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                </tr>
+                <tr>
+                  <td><span class="cell-mono">BOOT-WT-001-BRN-41</span></td>
+                  <td><div class="cell-secondary">Brown · EU 41</div></td>
+                  <td><span class="pill pill-draft"><span class="pill-dot"></span>Coming Soon</span></td>
+                  <td>No</td>
+                  <td>0</td>
+                  <td class="cell-secondary">2026-05-22</td>
+                  <td><button class="btn btn-ghost btn-sm">Open</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB: RELATIONS -->
+        <div class="tab-panel" id="tab-relations">
+          <div class="card">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-title">Relations &amp; Bundles</span>
+              <button class="btn btn-ghost btn-sm">+ Add Relation</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Target Product</th>
+                  <th>Quantity</th>
+                  <th>Sort</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="pill pill-draft"><span class="pill-dot"></span>Accessory</span></td>
+                  <td><div class="cell-primary">Boot Care Kit</div><div class="cell-secondary">CARE-KIT-001</div></td>
+                  <td>—</td>
+                  <td>1</td>
+                  <td><button class="btn btn-ghost btn-sm">Remove</button></td>
+                </tr>
+                <tr>
+                  <td><span class="pill pill-archived"><span class="pill-dot"></span>CrossSell</span></td>
+                  <td><div class="cell-primary">Wool Hiking Socks</div><div class="cell-secondary">SOCK-WH-002</div></td>
+                  <td>—</td>
+                  <td>2</td>
+                  <td><button class="btn btn-ghost btn-sm">Remove</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /view-detail -->
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+  function switchView(view, tabEl) {
+    document.querySelectorAll('.demo-view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    if (tabEl) tabEl.classList.add('active');
+
+    // Update breadcrumb
+    const bc = document.getElementById('breadcrumb-area');
+    if (view === 'list') {
+      bc.innerHTML = '<span>Products</span>';
+    } else {
+      bc.innerHTML = '<a href="#" onclick="switchView(\'list\',null);return false;" style="color:var(--text-muted)">Products</a><span class="sep">›</span><span class="current">BOOT-WT-001</span>';
+    }
+  }
+
+  function switchTab(tab, el) {
+    document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+</script>
+
+</body>
+</html>

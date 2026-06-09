@@ -57,6 +57,9 @@ public static class ServiceCollectionExtensions
             .Validate(options => options.ManualReplayDelaySeconds >= 0, "Webhooks:ManualReplayDelaySeconds must be zero or greater.")
             .ValidateOnStart();
 
+        services.AddOptions<StorefrontCartAccessTokenOptions>()
+            .BindConfiguration(StorefrontCartAccessTokenOptions.SectionName);
+
         services.AddScoped<IProductAdminApplicationService, InMemoryProductAdminApplicationService>();
         services.AddScoped<IVariantAdminApplicationService, InMemoryVariantAdminApplicationService>();
         services.AddScoped<IBrandAdminApplicationService, BrandAdminApplicationService>();
@@ -83,6 +86,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStorefrontContextApplicationService, StorefrontContextApplicationService>();
         services.AddScoped<IStorefrontCategoryApplicationService, StorefrontCategoryApplicationService>();
         services.AddScoped<IStorefrontProductApplicationService, StorefrontProductApplicationService>();
+        services.AddScoped<IStorefrontCartApplicationService, StorefrontCartApplicationService>();
+        services.AddSingleton<IStorefrontCartAccessTokenService, StorefrontCartAccessTokenService>();
         services.AddScoped<IStorefrontProjectionBuilder, StorefrontProjectionBuilder>();
         services.AddScoped<IStorefrontProjectionRefreshService, StorefrontProjectionRefreshService>();
         services.AddScoped<IStorefrontProjectionRefreshRequestPublisher, StorefrontProjectionRefreshRequestPublisher>();

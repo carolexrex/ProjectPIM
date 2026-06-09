@@ -28,11 +28,11 @@ Included in this v1 slice:
 - product browse/search
 - product detail
 - explicit price, availability, and buyability diagnostics
+- cart creation, cart repricing, and cart checkout into an order
 
 Deferred from the first storefront slice:
 
-- cart mutation endpoints
-- checkout initiation
+- payment initiation
 - payment callbacks
 - advanced search merchandising
 
@@ -45,8 +45,8 @@ For storefront consumers, resource-oriented names are clearer:
 - `context`
 - `categories`
 - `products`
-- later `carts`
-- later `checkout`
+- `carts`
+- checkout as a cart action: `POST /api/storefront/carts/{id}/checkout`
 
 Recommended base path:
 
@@ -81,6 +81,45 @@ The storefront API should not:
 - expose admin workflow fields
 - expose audit/internal operational details
 - require the CMS to understand admin write models
+
+## Security Direction
+
+Admin and backoffice APIs must always be authenticated and authorization-checked. They should not have a public mode.
+
+Storefront security should separate client/deployment access from shopper/cart ownership:
+
+- storefront catalog reads may be public or protected depending on project, channel, and deployment needs
+- storefront write and commerce endpoints must require shopper, customer, session, or cart ownership proof
+- server-side consumers such as CMS integrations may use API keys or OAuth client credentials
+- browser clients must not rely on a browser API key as a secret; a browser-visible key can identify a frontend app, but it cannot protect private catalog data
+
+Current cart ownership proof:
+
+- cart creation returns a signed `cartAccessToken`
+- cart read, reprice, and checkout require that token in the `X-Storefront-Cart-Token` header
+- `rowVersion` is still only optimistic concurrency control; it is not an ownership secret
+- if `StorefrontSecurity:CartAccessToken:SigningKey` is not configured, the API uses an ephemeral process-local signing key suitable for local smoke only
+
+Recommended future configuration shape:
+
+```json
+{
+  "StorefrontSecurity": {
+    "CatalogReadMode": "Public",
+    "AllowedOrigins": ["https://www.example.com"],
+    "RequireClientCredentials": false,
+    "RateLimitPolicy": "StorefrontRead"
+  }
+}
+```
+
+Suggested `CatalogReadMode` values:
+
+- `Public`: catalog read endpoints are open, with CORS, rate limits, and gateway controls.
+- `TrustedClientsOnly`: catalog read endpoints require API key or OAuth client credentials, useful for CMS/server-side rendering/private partner consumers.
+- `Private`: catalog read endpoints require an authenticated shopper/customer token, useful for B2B or private catalogs.
+
+Local development can default to `Public`. Production defaults should be chosen per project/channel. Any private catalog must use real authentication rather than a browser-exposed API key.
 
 ## Initial Endpoints
 
@@ -235,6 +274,7 @@ For Nexra integration, the smallest useful storefront slice is:
 2. `GET /api/storefront/categories`
 3. `GET /api/storefront/products`
 4. `GET /api/storefront/products/{slug}`
+5. `GET /api/storefront/products/by-number/{productNumber}`
 
 That is enough for:
 
@@ -242,11 +282,12 @@ That is enough for:
 - product detail pages
 - category navigation
 - localized market-aware rendering
+- targeted product refresh and stable product references through product-number lookup
 
 It is not enough for:
 
-- cart/checkout ownership
-- full transactional commerce flows
+- payment ownership
+- full transactional commerce flows beyond order placement
 
 ## Recommended Implementation Order
 
@@ -254,4 +295,106 @@ It is not enough for:
 2. category tree endpoint
 3. product list/search endpoint
 4. product detail endpoint
-5. only after that, cart and checkout surfaces
+5. cart creation and repricing
+6. cart checkout into an order
+7. only after that, payment and fulfillment surfaces
+
+## Cart And Checkout
+
+Implemented endpoints:
+
+- `POST /api/storefront/carts`
+- `GET /api/storefront/carts/{id}`
+- `POST /api/storefront/carts/{id}/reprice`
+- `POST /api/storefront/carts/{id}/checkout`
+
+Cart creation resolves the same storefront context as catalog reads:
+
+```http
+POST /api/storefront/carts?channel=WEB-SE&market=SE&culture=sv-SE&currency=SEK
+```
+
+Example request:
+
+```json
+{
+  "email": "buyer@example.com",
+  "lines": [
+    {
+      "variantId": "50000000-0000-0000-0000-000000000011",
+      "quantity": 1,
+      "comment": null
+    }
+  ],
+  "addresses": [
+    {
+      "type": "Billing",
+      "firstName": "Alicia",
+      "lastName": "Buyer",
+      "line1": "Sveavagen 10",
+      "postalCode": "11157",
+      "city": "Stockholm",
+      "countryCode": "SE",
+      "email": "buyer@example.com"
+    },
+    {
+      "type": "Shipping",
+      "firstName": "Alicia",
+      "lastName": "Buyer",
+      "line1": "Sveavagen 10",
+      "postalCode": "11157",
+      "city": "Stockholm",
+      "countryCode": "SE",
+      "email": "buyer@example.com"
+    }
+  ]
+}
+```
+
+Cart line variants must be visible and buyable in the resolved storefront context. The cart service validates against `StorefrontProductProjection`, including variant buyability and available quantity unless the variant is backorderable.
+
+Cart responses include:
+
+- `id`
+- `marketId`
+- `currencyCode`
+- `cultureCode`
+- `email`
+- `status`
+- `subtotal`
+- `vatTotal`
+- `grandTotal`
+- `expiresAtUtc`
+- `lines`
+- `addresses`
+- `rowVersion`
+- `cartAccessToken`
+
+Repricing is explicit, row-version guarded, and cart-token guarded:
+
+```http
+POST /api/storefront/carts/{id}/reprice
+X-Storefront-Cart-Token: {cartAccessToken}
+```
+
+```json
+{
+  "rowVersion": "..."
+}
+```
+
+Checkout converts an active cart into an order. It is also row-version guarded, cart-token guarded, and idempotent by source cart id:
+
+```http
+POST /api/storefront/carts/{id}/checkout
+X-Storefront-Cart-Token: {cartAccessToken}
+```
+
+```json
+{
+  "rowVersion": "..."
+}
+```
+
+Checkout requires a cart email plus at least one `Billing` address and one `Shipping` address. It validates the cart lines against the current storefront projection before conversion, then returns the placed order snapshot. Payment initiation and payment callbacks are still separate future work.
+

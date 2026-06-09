@@ -219,7 +219,7 @@ Completed:
 - order creation from carts is idempotent and company permissions are enforced for company-context ordering
 - migration `AddCartOrderModule` exists
 
-### 4. Custom Fields And AI Content Workflow
+### 4. Custom Fields And AI Workflow Foundation
 
 Status:
 
@@ -230,19 +230,23 @@ Scope:
 
 - custom field definitions and value orchestration
 - field capability metadata for AI-assisted workflows
-- AI prompt templates, jobs, suggestions, and review actions
+- AI provider/model configuration and feature profiles
+- AI prompt templates, jobs, proposals, suggestions, and review actions
+- audit fields for provider, model, prompt version, input snapshot, output, actor, and approval state
 
 Dependencies:
 
 - customers/catalog target writers
 - worker/background execution
 - audit/history
+- stronger backoffice review UX
 
 Exit criteria:
 
 - custom fields are persisted and exposed through admin APIs
-- AI suggestion workflow supports create, review, accept, reject, and edit
-- accepted suggestions write through application abstractions rather than controller branching
+- AI proposal workflow supports create, review, accept, reject, and edit
+- accepted proposals write through application abstractions rather than controller branching
+- model choice is controlled by admin-configured provider profiles rather than arbitrary per-user model selection
 - tests cover capability validation and idempotent suggestion acceptance
 
 ### 5. Import/Export And Background Jobs
@@ -324,7 +328,9 @@ Completed In Current Slice:
 - storefront projection refresh processing now persists retry/backoff state so repeated failures are observable, delayed, and eventually abandoned instead of retried every worker tick
 - storefront context resolution supports explicit channel/market input and host-name-based channel lookup
 - product browse now exposes supported sort values plus category/brand facet metadata for storefront consumers
+- storefront cart endpoints now support cart creation, cart reads, projection-backed buyability validation, signed cart access-token ownership proof, row-version guarded repricing, and cart checkout into an order
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior
+- tests cover storefront cart creation, pricing, buyability validation, cart access-token ownership proof, checkout address validation, checkout conversion, idempotent checkout, and empty-cart validation
 
 ### 7. Audit, History, And Stronger Identity
 
@@ -338,6 +344,8 @@ Scope:
 - richer identity model beyond bootstrap users
 - expanded role/policy coverage for non-catalog modules
 - support for integration clients and future scoped permissions
+- storefront security configuration for public, trusted-client, and private catalog read modes
+- shopper/session/cart ownership proof for storefront commerce endpoints
 
 Dependencies:
 
@@ -351,6 +359,8 @@ Exit criteria:
 - admin identity is no longer limited to bootstrap-only users
 - policies exist for catalog, pricing, inventory, customer service, and AI review areas
 - documentation clearly distinguishes runtime auth, admin auth, and future integration auth
+- storefront catalog read protection is configurable per deployment/channel
+- storefront cart/checkout access is protected by shopper, session, or cart ownership proof
 
 Completed In Current Slice:
 
@@ -359,15 +369,112 @@ Completed In Current Slice:
 - database-backed admin users are implemented with bootstrap user fallback still preserved for recovery/dev access
 - admin tokens now distinguish principal type so admin and integration callers are no longer treated as the same kind of actor
 - admin user list/get/create/update API is implemented
+- storefront cart read/reprice/checkout require signed cart access-token ownership proof
 - tests cover admin token principal-type claims and admin user password hashing / role persistence
+
+### 8. AI Product Content Proposals
+
+Status:
+
+- planned as a final-stage AI feature
+- depends on the AI workflow foundation
+
+Purpose:
+
+- help operators generate and review product-facing content without allowing unreviewed model writes into catalog data
+
+Scope:
+
+- product name, short description, long description, SEO title, and SEO description proposals
+- localized translation proposals for existing product content
+- media alt-text proposals from product images
+- prompt/profile versioning so outputs can be audited and regenerated intentionally
+
+Non-goals:
+
+- direct chat-driven product writes
+- synthetic primary product imagery as a default workflow
+- replacing merchant approval for customer-facing copy
+
+Dependencies:
+
+- AI workflow foundation
+- product and media admin APIs
+- audit/history and role policy coverage
+- backoffice proposal review UI
+
+Exit criteria:
+
+- operators can request product content proposals for one or more products
+- proposals are persisted with model/provider/prompt metadata and input snapshots
+- accepted proposals update products through existing application services with row-version checks
+- rejected or edited proposals remain auditable
+
+### 9. AI Attribute, Category, And Import Enrichment
+
+Status:
+
+- planned as the final AI feature stage after content proposals
+
+Purpose:
+
+- help operators improve product data completeness and supplier onboarding quality while keeping deterministic approval and validation in ProjectPIM
+
+Scope:
+
+- suggest missing product/variant attributes from descriptions, existing attributes, and media context
+- suggest category/facet placement for products
+- assist supplier import mapping for CSV/Excel-like product feeds
+- detect likely data quality issues and inventory/catalog anomalies for operator review
+
+Non-goals:
+
+- automatic inventory mutation without explicit approval
+- bypassing category, attribute, pricing, inventory, or product validation rules
+- free-form agent writes outside the proposal/review/apply pipeline
+
+Dependencies:
+
+- AI product content proposal workflow
+- import/export job pipeline
+- product attribute and category administration
+- stronger backoffice bulk review UX
+
+Exit criteria:
+
+- enrichment suggestions are persisted as reviewable proposals
+- accepted suggestions apply through existing application services and validation rules
+- supplier import mapping assistance can produce a reviewable mapping before a job is submitted
+- tests cover proposal acceptance, validation failures, and idempotent re-application behavior
 
 ## Recommended Sequencing
 
-1. audit/history and stronger identity
-2. import/export and background jobs
-3. custom fields and AI workflow
-4. storefront read model and search
-5. agentic shopping refinement on top of storefront and commerce flows
+1. validate the storefront cart/checkout path with a live smoke from the consuming storefront/Nexra side
+2. choose the next commerce slice: payment initiation/callbacks or fuller cart line mutation endpoints
+3. improve backoffice review/bulk-edit UX where AI proposals will later be reviewed
+4. complete audit/history and stronger identity gaps that affect proposal approval and integration clients
+5. finish import/export and background job refactoring
+6. complete custom fields and AI workflow foundation
+7. add AI product content proposals
+8. add AI attribute, category, and import enrichment
+9. refine agentic shopping flows on top of storefront and commerce APIs
+
+## Immediate Next Step
+
+Run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
+
+The smoke should use the canonical local base URL `http://localhost:5064/api/storefront` and the current cart ownership flow:
+
+1. resolve context for the smoke channel/market/culture/currency
+2. read product detail and select a visible, buyable variant
+3. create a cart and capture both `rowVersion` and `cartAccessToken`
+4. read the cart with `X-Storefront-Cart-Token`
+5. reprice the cart with `X-Storefront-Cart-Token` and the latest `rowVersion`
+6. checkout the cart with `X-Storefront-Cart-Token`, billing address, shipping address, and the latest `rowVersion`
+7. repeat checkout once to confirm idempotency by source cart id
+8. verify missing or invalid `X-Storefront-Cart-Token` returns `401`
+
+Passing this smoke is the gate before starting the next commerce slice. After the smoke, choose between payment initiation/callbacks and fuller cart line mutation endpoints.
 
 ## Integration Job Execution Refactor Plan
 
