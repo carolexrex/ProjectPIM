@@ -53,13 +53,21 @@ Password: Test123!
 
 ## Seed PostgreSQL
 
-Run:
+Run (Windows PowerShell):
 
 ```powershell
 ./scripts/seed-storefront-smoke.ps1
 ```
 
-The script is designed to be rerunnable. It reuses existing smoke records when they already exist and upserts the pieces that need current row versions.
+Run (macOS/Linux, requires `curl` + `jq`):
+
+```bash
+bash ./scripts/seed-storefront-smoke.sh
+```
+
+Both scripts are designed to be rerunnable. They reuse existing smoke records when they already exist and upsert the pieces that need current row versions.
+
+The bash script additionally runs the storefront cart/checkout gate from `docs/pim-roadmap-v1.md` after the read smoke (create cart, capture token + row version, read/reprice with `X-Storefront-Cart-Token`, checkout, repeat checkout for idempotency, and confirm missing/invalid token returns `401`). Pass `--skip-cart-smoke` to seed and read-smoke only. Other flags: `--skip-projection-rebuild`, `--skip-smoke-check`, `--projection-wait-seconds <n>`, `--culture <code>`.
 
 ## Smoke URLs
 

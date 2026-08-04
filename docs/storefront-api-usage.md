@@ -35,6 +35,17 @@ Browser-visible API keys are not secrets. They can identify the frontend app, bu
 
 Cart creation returns a signed `cartAccessToken`. Storefront clients must send that token in `X-Storefront-Cart-Token` when reading, repricing, or checking out the cart. `rowVersion` is only optimistic concurrency control; it is not an ownership secret. Configure `StorefrontSecurity:CartAccessToken:SigningKey` for stable multi-instance or restart-safe cart tokens. If it is omitted, local development uses an ephemeral process-local signing key.
 
+The `cartAccessToken` is a bearer capability, not an identity or session. It proves ownership of one cart and carries no shopper identity, so anyone holding it can read, reprice, and check out that cart until the cart expires. Clients must keep it confidential (treat it like a password for that cart) and must not log it or expose it to other users. A future shopper/customer/session login can layer on top of it.
+
+### Storefront host protections (CORS and rate limiting)
+
+`Platform.StorefrontApi` applies CORS and a coarse per-client rate limit at the host:
+
+- `StorefrontSecurity:Cors:AllowedOrigins` — array of allowed browser origins. Outside Development, an empty list denies cross-origin browser access by default; in Development an empty list stays permissive for local smoke. Allowed methods are `GET` and `POST`.
+- `StorefrontSecurity:RateLimiting` — `Enabled` (default `true`), `PermitLimit` (default `300`), and `WindowSeconds` (default `60`): a fixed-window limit partitioned by client IP, returning `429` with `Retry-After` when exceeded.
+
+Behind a reverse proxy or gateway, configure forwarded headers so the real client IP is used for rate-limit partitioning, and keep gateway-level controls as the outer layer.
+
 ## Data Prerequisites
 
 The examples below use the demo identifiers `WEB-SE`, `SE`, `tools`, `example-drill`, and `SKU-EXAMPLE-1`.
@@ -426,6 +437,8 @@ Behavior notes:
 - checkout revalidates line buyability against the current storefront projection before conversion
 - checkout is idempotent by source cart id; repeating checkout for an already converted cart returns the existing order
 - payment initiation is not implemented in this slice
+- inventory reservation/allocation is not implemented in this slice; order placement does not decrement projected stock
+- cart/order tax calculation is not production-complete; tax-category and market-specific tax resolution are still pending
 
 ## Error Handling
 

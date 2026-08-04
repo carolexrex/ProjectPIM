@@ -377,16 +377,33 @@ Request:
 
 ## Product Status Definitions
 
+Current implementation status:
+
+- Implemented read endpoint is `GET /api/admin/product-statuses`.
+- Current response DTO exposes `id`, `code`, `name`, and `isBuyable`.
+- Create/update status-definition endpoints and the full visibility/search/default/sort contract below are target design, not current API.
+
 ### List Product Status Definitions
 
-`GET /api/admin/product-status-definitions`
+Current:
+
+`GET /api/admin/product-statuses`
 
 Query parameters:
 
 - `entityType`
+
+Target:
+
+`GET /api/admin/product-status-definitions`
+
+Additional target query parameters:
+
 - `status`
 
 ### Create Product Status Definition
+
+Target only:
 
 `POST /api/admin/product-status-definitions`
 
@@ -473,6 +490,12 @@ Request:
 
 ## Price Lists
 
+Current implementation status:
+
+- Current API supports price lists, market assignments, priorities/base-list flags, entries, list validity windows, and entry validity windows.
+- Current API does not expose `companyId` on price lists. Company/customer-specific pricing is target design only.
+- Tax-category rates are not exposed; cart/order tax calculation should not be treated as complete.
+
 ### List Price Lists
 
 `GET /api/admin/price-lists`
@@ -481,8 +504,11 @@ Query parameters:
 
 - `currencyCode`
 - `status`
-- `companyId`
 - `marketId`
+
+Target/future query parameters:
+
+- `companyId`
 
 ### Create Price List
 
@@ -496,10 +522,14 @@ Request:
   "name": "SE Base Gross",
   "currencyCode": "SEK",
   "vatIncluded": true,
-  "status": "Active",
-  "companyId": null
+  "validFromUtc": null,
+  "validToUtc": null
 }
 ```
+
+Target/future field:
+
+- `companyId`
 
 ### Update Price List
 
@@ -881,6 +911,53 @@ Response:
   "status": "Pending"
 }
 ```
+
+## Assisted Import Sources
+
+This is a target contract for the staged source-onboarding workflow in `import-source-onboarding-design-v1.md`; it is not implemented by the current product import job.
+
+Supported source families should grow incrementally:
+
+- existing file/product import formats
+- conventional REST APIs with OpenAPI or representative samples
+- authorized website discovery through feeds, sitemaps, JSON-LD, and bounded page extraction
+- purpose-built adapters for legacy systems that cannot be represented safely by the generic connector definition
+
+Recommended resource shape:
+
+- `POST /api/admin/import-sources`
+- `GET /api/admin/import-sources`
+- `GET /api/admin/import-sources/{id}`
+- `POST /api/admin/import-sources/{id}/discover`
+- `GET /api/admin/import-sources/{id}/connector-definitions`
+- `POST /api/admin/import-sources/{id}/connector-definitions/{version}/approve`
+- `POST /api/admin/import-sources/{id}/dry-runs`
+- `GET /api/admin/import-batches/{id}`
+- `GET /api/admin/import-batches/{id}/candidates`
+- `POST /api/admin/import-batches/{id}/approve`
+- `POST /api/admin/import-batches/{id}/execute`
+
+Source creation should accept source type, base location, operational limits, and an opaque credential reference. It must not return secret material or copy raw credentials into integration-job payloads.
+
+Discovery responses should identify:
+
+- sampled endpoints or pages
+- detected source capabilities
+- proposed product, variant, category, media, price, and relationship mappings
+- evidence and confidence for AI-assisted decisions
+- blocking safety or compatibility issues
+
+Dry-run responses should include discovered, staged, create, update, unchanged, skipped, warning, and failure counts. Candidate reads should expose source lineage, proposed action, validation issues, and field-level differences without requiring operators to inspect raw worker logs.
+
+Approval and execution rules:
+
+- discovery is bounded and read-only by default
+- a connector-definition version must be approved before a production import
+- execution pins that version and runs as an `IntegrationJob`
+- applying candidates uses normal application services and authorization policies
+- repeated approval or execution requests require idempotency protection
+- website sources require recorded confirmation that the operator is authorized to scan and import the source
+- source credentials and sensitive samples must be redacted from audit, error, and AI-provider payloads
 
 ## Audit Expectations
 

@@ -15,6 +15,15 @@ It covers:
 
 This is the implementation-oriented companion to [admin-api-contract-v1.md](./admin-api-contract-v1.md).
 
+## Current Implementation Notes
+
+This document describes the intended module ownership shape. The current code implements most admin foundations, but a few ownership areas are still target-only:
+
+- pricing has price lists, entries, market assignments, and cart repricing, but not tax-category/market tax resolution or company/customer-specific price selection
+- inventory has locations, balances, adjustments, transactions, and availability diagnostics, but not reservations or order allocation/deduction
+- product status definitions are persisted with the target schema shape, but the current domain/application/API surface only exposes buyability
+- integrations have persisted brand/product import-export jobs, but not the staged sources, connector definitions, dry runs, lineage, or approval flow described in `import-source-onboarding-design-v1.md`
+
 ## Goals
 
 The implementation should be:
@@ -66,6 +75,7 @@ Recommended modules:
 - `Orders`
 - `CustomFields`
 - `Ai`
+- `Integrations`
 
 Agentic shopping should not become its own admin module in v1.
 
@@ -433,7 +443,12 @@ public interface ICurrentUserAccessor { }
 public interface IEventPublisher { }
 public interface IAuditWriter { }
 public interface IAiSuggestionTargetWriter { }
+public interface IImportSourceAdapter { }
+public interface IImportCandidateValidator { }
+public interface IImportBatchApplicationService { }
 ```
+
+Import adapters should return bounded source records to the application layer. They should not write catalog entities or decide approval themselves. The application workflow owns normalization, staging, validation, mapping-version checks, and coordination with existing catalog/pricing/media services; infrastructure owns concrete HTTP, OpenAPI, crawling, rendering, secret, and persistence implementations.
 
 Keep repositories module-oriented, not generic.
 

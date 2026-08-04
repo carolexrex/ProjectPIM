@@ -28,6 +28,13 @@ Current code status:
 - storefront projection rebuild can be executed through the admin/worker job pipeline
 - storefront product browse/detail now read through the projection repository
 
+Known implementation gaps:
+
+- projection price resolution currently needs to filter price-list entry `ValidFromUtc`/`ValidToUtc` the same way cart repricing does
+- scheduled price windows need a time-based refresh pass, because no write event fires when a price simply becomes active or expires
+- storefront cart buyability validation currently scans/deserializes the context projection set; add variant-targeted lookup before real catalog volume
+- tax-category/market tax rates and company/customer-specific pricing are not part of the current projection/cart path
+
 That means this document is now both:
 
 - the design rationale
@@ -301,6 +308,7 @@ Recommended rule for the first projection:
 - compute the effective storefront price for each visible sellable product in a given market/currency context
 - store top-level product price as the lowest visible buyable variant price
 - also store per-variant resolved price in the variant payload
+- resolve only currently valid price-list entries; list-level and entry-level validity windows must match cart repricing behavior
 
 That makes:
 
@@ -563,6 +571,7 @@ Current implementation status:
 - refresh processing coalesces each batch into distinct product ids before rebuilding projections, falls back to per-message processing when the coalesced batch fails, marks invalid refresh payloads complete after logging a warning, and logs message/product counts for observability
 - internal storefront refresh messages persist attempt count, last error, next retry time, and abandonment state after repeated failures
 - the documented direct dependency fan-outs for Phase 3 are now covered; remaining hardening is operational monitoring and admin/operator visibility
+- time-based refresh for scheduled price-list entry windows is not implemented; a worker pass should enqueue affected products when entry/list windows open or close without a write mutation
 
 ### Phase 4: Search Refinement
 
@@ -578,6 +587,7 @@ This design does not yet include:
 - checkout
 - customer-specific pricing
 - customer-specific availability
+- tax-category/market tax calculation
 - recommendation ranking
 - CMS page composition
 - external search engine adoption

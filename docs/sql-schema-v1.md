@@ -2,7 +2,15 @@
 
 Current status:
 
-This file is a historical SQL Server-first schema draft. The active implementation plan is documented in [pim-roadmap-v1.md](./pim-roadmap-v1.md).
+This file is a historical SQL Server-first schema draft. It is not the active runtime schema, not a migration source, and not proof that a listed table or column exists in the current domain/API flow.
+
+The active implementation plan is documented in [pim-roadmap-v1.md](./pim-roadmap-v1.md). The active runtime schema is EF Core migrations under `src/Platform.Infrastructure/Persistence/Migrations`.
+
+Examples of target-vs-current drift to watch:
+
+- `InventoryReservation` is documented here as target design, but reservations are not implemented in the current runtime.
+- product status definition visibility/search/default/sort columns exist as EF shadow properties, but the current domain/API status surface only exposes buyability.
+- company-specific price lists and tax-category rate tables are target concepts, not current pricing behavior.
 
 ## Purpose
 

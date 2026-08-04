@@ -36,9 +36,17 @@ Implemented in code today:
 - PostgreSQL DbContext, configurations, migrations, and design-time factory
 - initial backoffice screens for catalog, inventory, customer/company, and cart/order admin modules
 
-Present but still skeletal:
+Important current gaps:
 
-- `Platform.StorefrontApi`, beyond the initial context, category, and first product read endpoints
+- tax resolution is not implemented; cart/order pricing currently uses a fixed VAT rate in infrastructure rather than tax-category and market rules
+- company-specific price lists/customer-context price resolution are not implemented, even though the domain model leaves room for B2B pricing
+- checkout/order creation does not reserve, allocate, or decrement inventory; stock changes still come only from explicit inventory adjustments
+- storefront projection price resolution does not yet filter price-list entry validity windows and there is no scheduled refresh for prices that become active or expire only because time passes
+- product status definitions have the target shadow columns in EF, but the domain/application/API surface currently only works with `IsBuyable`; visibility/search/default/sort behavior is not fully surfaced or enforced
+
+Present but still incomplete:
+
+- `Platform.StorefrontApi` has context, category, projection-backed product browse/detail, and cart/checkout endpoints, but payment initiation/callbacks and fuller cart-line mutation workflows are still future work
 
 ## Implemented
 
@@ -55,8 +63,8 @@ Present but still skeletal:
 - brand management
 - market management
 - channel management
-- pricing and price lists
-- inventory locations, balances, and transactions
+- pricing and price lists, excluding tax-category resolution and company/customer-specific pricing
+- inventory locations, balances, and transactions, excluding reservation/allocation during checkout
 - customer and company administration
 - cart and order administration foundations
 - integration job persistence, brand/product import-export background execution, and webhook/outbox foundation with catalog/pricing mutation events
@@ -75,6 +83,8 @@ Present but still skeletal:
 - `storefront-api-usage.md`: current developer usage guide for implemented storefront endpoints
 - `storefront-read-model-design-v1.md`: implementation design for the next storefront projection/read-model slice
 - `admin-api-implementation-design-v1.md`: target application/API implementation shape
+- `import-source-onboarding-design-v1.md`: planned staged import platform for file feeds, authorized websites, and legacy REST APIs
+- `backoffice-ux-direction.md`: Backoffice theme, future Natrium naming, and operations-console direction
 - `ai-api-backoffice-contract.md`: planned AI workflow contract
 - `local-database-bootstrap.md`: active PostgreSQL bootstrap path
 - `sql-schema-v1.md`: historical SQL Server-first schema draft only
@@ -83,11 +93,43 @@ Present but still skeletal:
 
 The remaining work is best treated as explicit area plans rather than a short unordered backlog.
 
+### 0. Backoffice UX, Natrium Identity, And Operator Console
+
+Status:
+
+- direction documented
+- partially implemented in the Razor Backoffice shell
+- naming decision still needs cleanup because the running shell currently uses `Natrium`/`Natrium Backoffice` while code/projects/scripts remain `Platform`/`ProjectPIM`
+
+Scope:
+
+- align the Backoffice visual language with the darker Nexra shell/theme documented in `backoffice-ux-direction.md`
+- keep `ux-mockup.html` as the catalog/product workflow prototype, but restyle future implementation toward the Nexra tokens
+- treat `Natrium` as the future product-facing name without renaming code, projects, databases, or scripts until a deliberate rename plan exists
+- add an Operations area that can host Storefront Ops, integration jobs, webhooks, and a future terminal-like console
+- introduce terminal capability incrementally: command palette, API command console, operations terminal, and only later an opt-in host shell if still needed
+
+Dependencies:
+
+- existing admin API routes and Backoffice MVC host
+- stronger identity and admin policy coverage before any terminal-like privileged operations
+- audit logging and correlation ids for operator commands
+- worker/job APIs for long-running operational actions
+
+Exit criteria:
+
+- Backoffice uses a consistent Nexra-aligned token system and shell
+- navigation groups are Catalog, Commerce, Operations, Configuration, and future AI
+- Natrium naming is applied consistently only after a separate rename decision
+- terminal-like workflows call admin APIs or enqueue worker jobs instead of bypassing application services
+- any real host shell is disabled by default, policy-gated, and audited
+
 ### 1. Inventory
 
 Status:
 
-- implemented
+- implemented for admin-managed locations, balances, adjustments, transactions, and snapshots
+- reservation/allocation loop not implemented
 
 Scope:
 
@@ -114,6 +156,12 @@ Completed:
 - admin API supports location CRUD, balance upsert, adjustment commands, and variant inventory snapshot reads
 - backoffice supports inventory administration and variant inventory visibility
 - migration `AddInventoryModule` exists
+
+Known gaps before real checkout traffic:
+
+- there is no `InventoryReservation` aggregate/table/runtime flow
+- order creation from cart does not write an `OrderAllocation` or similar inventory transaction
+- projected availability is not decremented by order placement; it changes only when balances are explicitly adjusted
 
 ### 2. Customers And Companies
 
@@ -190,7 +238,8 @@ Exit criteria:
 
 Status:
 
-- implemented
+- implemented for admin carts/orders and storefront checkout-to-order conversion
+- not payment- or stock-allocation-complete
 
 Scope:
 
@@ -218,6 +267,12 @@ Completed:
 - backoffice supports cart inspection, repricing, expiration, cart-to-order conversion, and order operations
 - order creation from carts is idempotent and company permissions are enforced for company-context ordering
 - migration `AddCartOrderModule` exists
+
+Known gaps before payment work:
+
+- cart pricing uses a fixed VAT rate rather than tax-category and market-specific tax rules
+- order creation does not reserve, allocate, or deduct inventory
+- storefront cart creation currently starts without customer/company context; B2B cart pricing is not active
 
 ### 4. Custom Fields And AI Workflow Foundation
 
@@ -261,6 +316,10 @@ Scope:
 - bulk admin endpoints delegating long-running work
 - background execution pipeline and retry-safe job processing
 - outbound webhook/outbox foundation
+- shared staged-import foundation with source lineage, dry runs, validation, deduplication, approval, and per-item outcomes
+- source-adapter contracts for file feeds, conventional REST/OpenAPI sources, and authorized website discovery
+- versioned connector definitions so AI-assisted discovery produces deterministic, repeatable imports
+- source credential references and outbound-request safety controls without placing secrets in job payloads
 
 Dependencies:
 
@@ -273,6 +332,19 @@ Exit criteria:
 - worker can execute at least one real job type end-to-end
 - outbox/integration job tables are introduced with clear ownership
 - operational logging and failure reporting are visible to admins
+- import dry runs stage normalized candidates without mutating live catalog data
+- approved imports apply through existing application services and remain idempotent across reruns
+- operators can review mapping uncertainty, validation failures, deduplication decisions, and source-to-entity lineage
+
+Planned Source Onboarding:
+
+- first build the shared staging and lineage model on top of the current product import job
+- then support conventional paginated REST APIs, preferring OpenAPI plus representative samples
+- add structured website discovery through feeds, sitemaps, JSON-LD, and static HTML before rendered-page extraction
+- use AI to propose field, variant, category, media, and price mappings; pin an approved mapping version before execution
+- treat website scanning as an authorized, bounded, one-time migration flow initially
+- defer continuous synchronization until conflict, deletion/archive, scheduling, and change-detection semantics are explicit
+- follow `import-source-onboarding-design-v1.md` for security boundaries, layer ownership, and phased delivery
 
 Completed In Current Slice:
 
@@ -331,6 +403,13 @@ Completed In Current Slice:
 - storefront cart endpoints now support cart creation, cart reads, projection-backed buyability validation, signed cart access-token ownership proof, row-version guarded repricing, and cart checkout into an order
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior
 - tests cover storefront cart creation, pricing, buyability validation, cart access-token ownership proof, checkout address validation, checkout conversion, idempotent checkout, and empty-cart validation
+
+Known storefront correctness/scaling gaps:
+
+- projection price resolution must respect price-list entry `ValidFromUtc`/`ValidToUtc`, matching cart repricing behavior
+- time-based projection refresh is needed for scheduled price windows that open or close without a write event
+- cart buyability validation should move from whole-context projection scans to variant-targeted lookup before catalog size grows materially
+- tax and company-specific price resolution are not part of the current storefront cart path
 
 ### 7. Audit, History, And Stronger Identity
 
@@ -424,7 +503,9 @@ Scope:
 
 - suggest missing product/variant attributes from descriptions, existing attributes, and media context
 - suggest category/facet placement for products
-- assist supplier import mapping for CSV/Excel-like product feeds
+- assist import mapping for CSV/Excel-like feeds, legacy REST/OpenAPI sources, and authorized website discoveries
+- propose endpoint, pagination, identifier, relationship, field, and value mappings from API documentation and bounded samples
+- interpret ambiguous website product/variant structures only when structured extraction is insufficient
 - detect likely data quality issues and inventory/catalog anomalies for operator review
 
 Non-goals:
@@ -432,6 +513,8 @@ Non-goals:
 - automatic inventory mutation without explicit approval
 - bypassing category, attribute, pricing, inventory, or product validation rules
 - free-form agent writes outside the proposal/review/apply pipeline
+- unrestricted autonomous crawling or production API exploration
+- executing an unapproved AI-generated connector definition
 
 Dependencies:
 
@@ -444,24 +527,33 @@ Exit criteria:
 
 - enrichment suggestions are persisted as reviewable proposals
 - accepted suggestions apply through existing application services and validation rules
-- supplier import mapping assistance can produce a reviewable mapping before a job is submitted
+- import mapping assistance can produce a reviewable, versioned connector definition before a dry run or job is submitted
+- mapping proposals retain source evidence and confidence so uncertain variant, media, category, and price mappings can be corrected
 - tests cover proposal acceptance, validation failures, and idempotent re-application behavior
 
 ## Recommended Sequencing
 
-1. validate the storefront cart/checkout path with a live smoke from the consuming storefront/Nexra side
-2. choose the next commerce slice: payment initiation/callbacks or fuller cart line mutation endpoints
-3. improve backoffice review/bulk-edit UX where AI proposals will later be reviewed
-4. complete audit/history and stronger identity gaps that affect proposal approval and integration clients
-5. finish import/export and background job refactoring
-6. complete custom fields and AI workflow foundation
-7. add AI product content proposals
-8. add AI attribute, category, and import enrichment
-9. refine agentic shopping flows on top of storefront and commerce APIs
+1. fix commerce correctness gates: tax-category/market tax resolution, projection entry validity windows with time-based refresh, and checkout inventory allocation/deduction
+2. validate the storefront cart/checkout path with a live smoke from the consuming storefront/Nexra side
+3. choose the next commerce slice: payment initiation/callbacks or fuller cart line mutation endpoints
+4. align the Backoffice shell/theme and Natrium naming decision with `backoffice-ux-direction.md`
+5. add product detail diagnostics for effective price and storefront buyability, then replace scale-hostile product/variant/category pickers with search-as-you-type controls
+6. improve Backoffice review/bulk-edit UX where AI proposals will later be reviewed
+7. add the safe Operations command palette/API console before considering a real host terminal
+8. complete audit/history and stronger identity gaps that affect proposal approval, integration clients, and operator commands
+9. finish import/export and background job refactoring, then add the shared staging/lineage foundation from `import-source-onboarding-design-v1.md`
+10. complete custom fields and AI workflow foundation
+11. add AI product content proposals
+12. add conventional REST/OpenAPI source onboarding and deterministic connector execution
+13. add structured website discovery, followed by AI-assisted mapping for unresolved source ambiguity
+14. add AI attribute, category, and broader import enrichment
+15. refine agentic shopping flows on top of storefront and commerce APIs
 
 ## Immediate Next Step
 
-Run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
+Fix the three commerce correctness gates before starting payment provider work: tax-category/market tax resolution, storefront projection entry-window handling with scheduled refresh, and order-placement inventory allocation/deduction.
+
+After those fixes, run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
 
 The smoke should use the canonical local base URL `http://localhost:5064/api/storefront` and the current cart ownership flow:
 
@@ -483,10 +575,11 @@ The current integration job execution service should be split before adding more
 Recommended shape:
 
 1. Keep `IntegrationJobExecutionService` as the orchestrator that claims runnable jobs, starts them, dispatches to a handler, records completion/failure, and publishes job lifecycle events.
-2. Introduce one handler per job type or job family: brand export, brand import, product export, product import, and storefront projection rebuild.
+2. Introduce one handler per job type or job family: brand export, brand import, product export, product import, approved staged import, and storefront projection rebuild.
 3. Move import validation and row mapping into handler-local collaborators where it materially reduces constructor size or makes tests narrower.
 4. Add a registry keyed by `IntegrationJobTypes` so unsupported job types fail in one place.
 5. Preserve the existing job state transitions and outbox publication tests during the split, then add focused handler tests for import/export edge cases.
+6. Keep source discovery and connector proposal generation separate from approved import execution; adapters return bounded source records and the import handler consumes a pinned connector-definition version.
 
 ## Modeling Notes
 

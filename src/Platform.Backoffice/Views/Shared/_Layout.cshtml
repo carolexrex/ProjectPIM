@@ -1,70 +1,123 @@
+@{
+    var currentController = (ViewContext.RouteData.Values["controller"] as string) ?? string.Empty;
+    Func<string, string> navActive = controller =>
+        string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)
+            ? "nav-item active"
+            : "nav-item";
+    var displayName = User.FindFirst("display_name")?.Value ?? User.Identity?.Name ?? "Operator";
+    var initials = string.Concat(displayName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+    if (string.IsNullOrEmpty(initials))
+    {
+        initials = "OP";
+    }
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Platform Backoffice</title>
+    <title>@ViewData["Title"] - Natrium Backoffice</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
     <div class="app-shell">
         <aside class="app-nav">
             <div class="brand-block">
-                <div class="brand-mark">PIM</div>
+                <div class="brand-mark">Na</div>
                 <div>
-                    <div class="eyebrow">Platform</div>
-                    <div class="brand-name">Backoffice</div>
+                    <div class="brand-name">Natrium</div>
+                    <div class="eyebrow">Backoffice</div>
                 </div>
             </div>
-            <nav class="nav-links">
-                <a asp-controller="Products" asp-action="Index">Products</a>
-                <a asp-controller="Brands" asp-action="Index">Brands</a>
-                <a asp-controller="Categories" asp-action="Index">Categories</a>
-                <a asp-controller="ProductAttributes" asp-action="Index">Attributes</a>
-                <a asp-controller="PriceLists" asp-action="Index">Price Lists</a>
-                <a asp-controller="InventoryLocations" asp-action="Index">Inventory</a>
-                <a asp-controller="Customers" asp-action="Index">Customers</a>
-                <a asp-controller="Companies" asp-action="Index">Companies</a>
-                <a asp-controller="Carts" asp-action="Index">Carts</a>
-                <a asp-controller="Orders" asp-action="Index">Orders</a>
-                <a asp-controller="StorefrontOperations" asp-action="Index">Storefront Ops</a>
-                <a asp-controller="Markets" asp-action="Index">Markets</a>
-                <a asp-controller="Channels" asp-action="Index">Channels</a>
-                <a asp-controller="MediaAssets" asp-action="Index">Media</a>
-                <a asp-controller="Products" asp-action="New">Create Product</a>
+
+            <nav class="nav-groups">
+                <div class="nav-group">
+                    <div class="nav-group-label">Catalog</div>
+                    <div class="nav-items">
+                        <a class="@navActive("Products")" asp-controller="Products" asp-action="Index"><span class="nav-dot"></span>Products</a>
+                        <a class="@navActive("Variants")" asp-controller="Variants" asp-action="Index"><span class="nav-dot"></span>Variants</a>
+                        <a class="@navActive("Brands")" asp-controller="Brands" asp-action="Index"><span class="nav-dot"></span>Brands</a>
+                        <a class="@navActive("Categories")" asp-controller="Categories" asp-action="Index"><span class="nav-dot"></span>Categories</a>
+                        <a class="@navActive("ProductAttributes")" asp-controller="ProductAttributes" asp-action="Index"><span class="nav-dot"></span>Attributes</a>
+                        <a class="@navActive("MediaAssets")" asp-controller="MediaAssets" asp-action="Index"><span class="nav-dot"></span>Media</a>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <div class="nav-group-label">Commerce</div>
+                    <div class="nav-items">
+                        <a class="@navActive("PriceLists")" asp-controller="PriceLists" asp-action="Index"><span class="nav-dot"></span>Price Lists</a>
+                        <a class="@navActive("InventoryLocations")" asp-controller="InventoryLocations" asp-action="Index"><span class="nav-dot"></span>Inventory</a>
+                        <a class="@navActive("Carts")" asp-controller="Carts" asp-action="Index"><span class="nav-dot"></span>Carts</a>
+                        <a class="@navActive("Orders")" asp-controller="Orders" asp-action="Index"><span class="nav-dot"></span>Orders</a>
+                        <a class="@navActive("Customers")" asp-controller="Customers" asp-action="Index"><span class="nav-dot"></span>Customers</a>
+                        <a class="@navActive("Companies")" asp-controller="Companies" asp-action="Index"><span class="nav-dot"></span>Companies</a>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <div class="nav-group-label">Operations</div>
+                    <div class="nav-items">
+                        <a class="@navActive("StorefrontOperations")" asp-controller="StorefrontOperations" asp-action="Index"><span class="nav-dot"></span>Storefront Ops</a>
+                        <span class="nav-item nav-item-soon"><span class="nav-dot"></span>Integration Jobs<span class="nav-badge">SOON</span></span>
+                        <span class="nav-item nav-item-soon"><span class="nav-dot"></span>Webhooks<span class="nav-badge">SOON</span></span>
+                        <span class="nav-item nav-item-soon"><span class="nav-dot"></span>Terminal<span class="nav-badge">SOON</span></span>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <div class="nav-group-label">Configuration</div>
+                    <div class="nav-items">
+                        <a class="@navActive("Markets")" asp-controller="Markets" asp-action="Index"><span class="nav-dot"></span>Markets</a>
+                        <a class="@navActive("Channels")" asp-controller="Channels" asp-action="Index"><span class="nav-dot"></span>Channels</a>
+                    </div>
+                </div>
             </nav>
-            <div class="nav-note">
-                API-first admin surface.
-                Run the UI only when you need it.
+
+            <div class="nav-footer">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="user-row">
+                        <div class="user-avatar">@initials</div>
+                        <div class="user-identity">
+                            <div class="user-name">@displayName</div>
+                            <div class="user-role">Admin</div>
+                        </div>
+                    </div>
+                }
+                <div class="nav-note">API-first admin surface over <span class="mono">Platform.Api</span>.</div>
             </div>
         </aside>
+
         <main class="app-main">
             <header class="topbar">
-                <div>
-                    <div class="eyebrow">Catalog Control</div>
+                <div class="topbar-lead">
+                    <div class="eyebrow">@(ViewData["Section"] ?? "Catalog Control")</div>
                     <h1>@ViewData["PageTitle"]</h1>
                 </div>
                 <div class="topbar-actions">
-                    <div class="topbar-meta">Headless core, optional UI host</div>
+                    <span class="topbar-meta mono">headless-core · optional-ui-host</span>
                     @if (User.Identity?.IsAuthenticated == true)
                     {
-                        <div class="user-strip">
-                            <span>@(User.FindFirst("display_name")?.Value ?? User.Identity?.Name)</span>
-                            <form method="post" asp-controller="Auth" asp-action="Logout">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="button button-ghost">Sign Out</button>
-                            </form>
-                        </div>
+                        <form method="post" asp-controller="Auth" asp-action="Logout">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="button button-ghost">Sign Out</button>
+                        </form>
                     }
                 </div>
             </header>
 
-            @if (TempData["FlashMessage"] is string flashMessage)
-            {
-                <div class="flash-success">@flashMessage</div>
-            }
+            <div class="app-content">
+                @if (TempData["FlashMessage"] is string flashMessage)
+                {
+                    <div class="flash-success">@flashMessage</div>
+                }
 
-            @RenderBody()
+                @RenderBody()
+            </div>
         </main>
     </div>
 </body>

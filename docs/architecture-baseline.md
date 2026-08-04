@@ -585,13 +585,33 @@ Recommended capabilities:
 - API keys / OAuth client credentials
 - webhooks with retries and signatures
 - import/export jobs
+- a staged inbound import pipeline shared by file feeds, authorized website discovery, and legacy APIs
+- versioned connector definitions for endpoint, pagination, identity, relationship, and field mappings
 - idempotency keys for write APIs
 - correlation ids for tracing
 - audit log for external writes
 
+Inbound source onboarding should separate discovery from execution:
+
+1. A source adapter retrieves a bounded, read-only sample.
+2. Deterministic rules and optional AI assistance propose a connector mapping.
+3. An operator reviews and approves a versioned connector definition.
+4. A dry run normalizes source records into staging and reports validation, deduplication, and conflicts.
+5. An approved background job applies candidates through existing application services.
+
+Do not let an agent make unrestricted production HTTP calls or write directly into catalog tables. AI is appropriate for interpreting documentation and ambiguous source shapes; the approved connector and normal application validation own execution.
+
+Website migration should prefer feeds, sitemaps, JSON-LD, embedded structured state, and static HTML. Rendered-page or AI-assisted extraction is a controlled fallback for customer-owned or otherwise authorized sources. Start with one-time migration rather than continuous scraping.
+
+Legacy REST onboarding should prefer OpenAPI and conventional paginated JSON. Arbitrary undocumented APIs may require representative samples or a purpose-built adapter. Source credentials must be stored as secret references, and outbound requests require host allowlists, SSRF protection, timeouts, size limits, rate limits, and secret-redacted logs.
+
+See `import-source-onboarding-design-v1.md` for the proposed staging model and delivery phases.
+
 Common integration targets:
 
 - ERP
+- legacy PIM and commerce platforms
+- customer-owned storefronts used as migration sources
 - CMS
 - DAM
 - search/indexing systems

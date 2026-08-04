@@ -355,6 +355,8 @@ Core entities:
 Responsible for:
 
 - import/export jobs
+- import source registration and authorization state
+- connector discovery, versioned mappings, staging, validation, review, and source lineage
 - webhook subscriptions
 - integration logs
 - idempotency and correlation
@@ -362,10 +364,29 @@ Responsible for:
 Core entities:
 
 - `IntegrationJob`
+- `ImportSource`
+- `ImportConnectorDefinition`
+- `ImportBatch`
+- `ImportCandidate`
+- `ImportEntityLink`
 - `WebhookSubscription`
 - `WebhookDelivery`
 - `InboundRequestLog`
 - `OutboxMessage`
+
+Import workflow rules:
+
+- discovery and dry runs must not mutate live catalog, media, pricing, or inventory
+- every imported source object must retain stable lineage to the resulting ProjectPIM entity
+- connector definitions are versioned and immutable once used by an approved import batch
+- AI-generated mappings remain proposals until explicitly approved
+- approved candidates apply through existing application services and domain validation
+- rerunning an unchanged source object must be idempotent
+- source deletion or absence must not automatically delete a local entity without an explicit per-source policy
+- displayed website availability is not authoritative inventory
+- ambiguous currency, market, tax, variant, or relationship mappings are blocking issues or explicit operator decisions
+
+The target details and phased delivery are defined in `import-source-onboarding-design-v1.md`.
 
 ## Core Entity Specifications
 
@@ -669,6 +690,11 @@ Required fields:
 
 Defines admin-managed catalog statuses and how they affect storefront behavior.
 
+Current implementation note:
+
+- EF maps the full target columns listed below, but `ProductStatusDefinition` in the domain model and the public admin DTO currently expose only `Code`, `Name`, `EntityType`, and `IsBuyable`.
+- Storefront buyability currently uses `IsBuyable`; `IsVisibleInStorefront`, `IsSearchable`, `IsDefault`, and `SortOrder` are target behavior until they are surfaced through the domain/application/API and used by projection building.
+
 Required fields:
 
 - `Id`
@@ -803,6 +829,12 @@ Rules:
 2. A price list may be assigned to one or many markets.
 3. A price list may optionally be targeted to one company in v1 if needed.
 
+Current implementation note:
+
+- Price lists, market assignments, priorities, base-list flags, quantity breaks, list validity windows, and entry validity windows exist.
+- Company-specific price-list targeting is not implemented in the current domain/API surface.
+- Tax category rates are not implemented; cart repricing currently uses a fixed VAT rate and should be replaced before payment initiation.
+
 ## PriceListEntry
 
 Required fields:
@@ -891,6 +923,11 @@ Rules:
 1. A reservation may be created during cart/checkout.
 2. Reservations must expire or be released.
 3. On order placement, reservation is converted or consumed by stock transaction logic.
+
+Current implementation note:
+
+- Reservations are target design only. The current code has inventory locations, balances, transactions, and admin adjustments, but no reservation aggregate/table/runtime flow.
+- Order placement does not yet write allocation/deduction inventory transactions.
 
 ## InventoryTransaction
 
@@ -1181,6 +1218,12 @@ Rules:
 3. Choose the highest applicable quantity break not exceeding requested quantity.
 4. Return a single effective unit price.
 
+Current implementation note:
+
+- Current cart repricing resolves active market price lists by priority and filters entry validity windows.
+- Current storefront projection price resolution must be kept in sync with cart repricing; it still needs entry-window filtering and a scheduled refresh mechanism for price windows that open or close without a write event.
+- Company/customer-specific pricing and tax-category/market tax rates are not implemented.
+
 ## Inventory Resolution Rules
 
 Minimum v1 resolution inputs:
@@ -1195,6 +1238,12 @@ Rules:
 2. Sum available stock across eligible locations unless future business rules require priority/allocation logic.
 3. If insufficient available stock and no backorder rule exists, checkout must block.
 4. Optional reservation is created during checkout start or payment initiation.
+
+Current implementation note:
+
+- Storefront reads and cart validation use projected availability from inventory balances.
+- Checkout validates buyability/availability before creating an order, but it does not reserve, allocate, or decrement stock.
+- The next production-readiness step is an order-placement inventory transaction, with expiring reservations added when payment authorization introduces a hold window.
 
 ## Culture and Translation Rules
 
@@ -1235,6 +1284,12 @@ Rules:
 1. Order creation must be idempotent.
 2. Repeated payment callbacks must not duplicate orders.
 3. The order snapshot must persist line names, SKU, prices, tax, and addresses.
+
+Current implementation note:
+
+- Storefront checkout can convert a cart to an order idempotently with signed cart access-token ownership proof.
+- Payment initiation/callback handling is not implemented.
+- Inventory reservation/allocation is not implemented, so payment work should not assume stock has been held.
 
 ## Permission Model
 
@@ -1282,6 +1337,7 @@ Admin/integration API should cover:
 - orders
 - webhooks
 - import/export jobs
+- import sources, connector definitions, dry-run batches, staged candidates, validation issues, and approvals
 
 Storefront API should cover:
 
@@ -1302,6 +1358,7 @@ Backoffice should cover:
 - pricing and inventory administration
 - customer/company/order administration
 - integration monitoring
+- import-source setup, mapping review, dry-run diffs, conflict resolution, and import progress
 
 ## Explicitly Deferred from v1
 

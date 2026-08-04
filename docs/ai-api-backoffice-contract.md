@@ -31,6 +31,19 @@ The AI workflow in v1 does not support:
 - direct storefront use of model output
 - agent-style autonomous catalog editing
 
+## Future Import Mapping Boundary
+
+The staged importer described in `import-source-onboarding-design-v1.md` may later use AI to propose mappings from file schemas, OpenAPI documents, API samples, and ambiguous website product structures.
+
+That capability should reuse the provider-profile, job metadata, evidence, confidence, audit, and review principles in this contract, but it should not be modeled as a live content-field suggestion. Its accepted output is a versioned `ImportConnectorDefinition`; deterministic import jobs then use that approved version.
+
+Import-mapping AI must not:
+
+- autonomously publish products or prices
+- make unrestricted production HTTP calls
+- receive source credentials in prompts
+- bypass staging, dry-run validation, deduplication, or operator approval
+
 ## Main Objects
 
 The API works primarily with:
@@ -565,3 +578,5 @@ After this contract, the next useful artifact is:
 1. application service contracts in `.NET`
 2. EF Core mappings for AI tables
 3. product edit/backoffice UI wireframes for AI review
+
+After the content-suggestion foundation is working, add a separate import-mapping proposal type rather than overloading `AiContentSuggestion`.
