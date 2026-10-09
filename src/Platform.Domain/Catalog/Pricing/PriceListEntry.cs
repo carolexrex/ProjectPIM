@@ -37,6 +37,21 @@ public sealed class PriceListEntry
     public DateTime? ValidFromUtc { get; private set; }
     public DateTime? ValidToUtc { get; private set; }
 
+    public bool IsValidAt(DateTime instantUtc)
+    {
+        if (ValidFromUtc.HasValue && instantUtc < ValidFromUtc.Value)
+        {
+            return false;
+        }
+
+        if (ValidToUtc.HasValue && instantUtc > ValidToUtc.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     public void Update(
         string targetType,
         Guid targetId,

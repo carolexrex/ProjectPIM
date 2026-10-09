@@ -36,6 +36,7 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
     private readonly IProductAttributeRepository _productAttributeRepository;
     private readonly IProductRepository _productRepository;
     private readonly IVariantRepository _variantRepository;
+    private readonly TimeProvider _timeProvider;
 
     public StorefrontProjectionBuilder(
         IBrandRepository brandRepository,
@@ -47,7 +48,8 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
         IPriceListRepository priceListRepository,
         IProductAttributeRepository productAttributeRepository,
         IProductRepository productRepository,
-        IVariantRepository variantRepository)
+        IVariantRepository variantRepository,
+        TimeProvider timeProvider)
     {
         _brandRepository = brandRepository;
         _categoryRepository = categoryRepository;
@@ -59,10 +61,15 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
         _productAttributeRepository = productAttributeRepository;
         _productRepository = productRepository;
         _variantRepository = variantRepository;
+        _timeProvider = timeProvider;
     }
 
     public async Task<IReadOnlyList<StorefrontProductProjection>> BuildForProductAsync(Guid productId, CancellationToken cancellationToken)
     {
+        // One instant for the whole build: price-list windows, price-list-entry windows, and the
+        // projection stamp must agree, otherwise a projection can record a price it did not resolve.
+        var projectedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
         var product = await _productRepository.GetByIdAsync(productId, cancellationToken);
         if (product is null)
         {
@@ -120,7 +127,6 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
         }
 
         var locations = await _inventoryLocationRepository.GetByIdsAsync(inventoryLocationIds.ToList(), cancellationToken);
-        var projectedAtUtc = DateTime.UtcNow;
         var projections = new List<StorefrontProductProjection>();
 
         foreach (var market in visibleMarkets)
@@ -144,7 +150,7 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
 
                 var priceByVariantId = variants.ToDictionary(
                     variant => variant.Id,
-                    variant => ResolvePrice(variant.Id, priceLists));
+                    variant => ResolvePrice(variant.Id, priceLists, projectedAtUtc));
 
                 foreach (var culture in market.Cultures.Select(x => x.CultureCode))
                 {
@@ -315,14 +321,16 @@ public sealed class StorefrontProjectionBuilder : IStorefrontProjectionBuilder
         return timestamps.Max();
     }
 
-    private static StorefrontProductPriceDto? ResolvePrice(Guid variantId, IReadOnlyList<PriceList> priceLists)
+    private static StorefrontProductPriceDto? ResolvePrice(Guid variantId, IReadOnlyList<PriceList> priceLists, DateTime instantUtc)
     {
         foreach (var priceList in priceLists)
         {
+            // Same entry eligibility rule as cart repricing, so a projected price stays quotable.
             var entry = priceList.Entries
                 .Where(x => string.Equals(x.TargetType, "Variant", StringComparison.OrdinalIgnoreCase))
                 .Where(x => x.TargetId == variantId)
                 .Where(x => x.MinQuantity <= 1)
+                .Where(x => x.IsValidAt(instantUtc))
                 .OrderByDescending(x => x.MinQuantity)
                 .ThenByDescending(x => x.ValidFromUtc)
                 .FirstOrDefault();

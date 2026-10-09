@@ -41,7 +41,6 @@ Important current gaps:
 - tax resolution is not implemented; cart/order pricing currently uses a fixed VAT rate in infrastructure rather than tax-category and market rules
 - company-specific price lists/customer-context price resolution are not implemented, even though the domain model leaves room for B2B pricing
 - checkout/order creation does not reserve, allocate, or decrement inventory; stock changes still come only from explicit inventory adjustments
-- storefront projection price resolution does not yet filter price-list entry validity windows and there is no scheduled refresh for prices that become active or expire only because time passes
 - product status definitions have the target shadow columns in EF, but the domain/application/API surface currently only works with `IsBuyable`; visibility/search/default/sort behavior is not fully surfaced or enforced
 
 Present but still incomplete:
@@ -398,16 +397,22 @@ Completed In Current Slice:
 - direct product, variant, brand, category subtree, market product assignment, inventory-location market assignment, price-list entry, and inventory-balance mutations now enqueue targeted storefront projection refresh requests processed by the worker
 - storefront projection refresh requests are internal outbox messages processed separately from external webhook fanout, and storefront reads no longer perform full rebuilds on read misses
 - storefront projection refresh processing now persists retry/backoff state so repeated failures are observable, delayed, and eventually abandoned instead of retried every worker tick
+- storefront projection price resolution captures one UTC instant per build and honours price-list and price-list-entry validity windows inclusively, matching cart repricing semantics
+- the worker runs a configurable, bounded price-validity scan that enqueues targeted projection refreshes when list/entry validity boundaries pass without a write event; staleness is resolved inside the scan query so repeated bounded passes always make progress, and each request carries a product-scoped dedup key that a partial unique index keeps unique for as long as the request is unpublished
 - storefront context resolution supports explicit channel/market input and host-name-based channel lookup
 - product browse now exposes supported sort values plus category/brand facet metadata for storefront consumers
 - storefront cart endpoints now support cart creation, cart reads, projection-backed buyability validation, signed cart access-token ownership proof, row-version guarded repricing, and cart checkout into an order
+- one refresh message per product means the existing per-message retry path isolates a failing product from the rest of a scheduled scan; abandoned requests keep their dedup reservation, so a failed refresh is never silently rescheduled and is returned to service by the admin reset workflow
+- tests cover price-validity windows (future, expired, inclusive boundary, entry and price-list fallback, missing-price buyability), the time-driven price-validity refresh pass, bounded multi-pass progress that is not starved by reserved products, dedup across repeated and concurrent scans, delayed-retry preservation, abandoned-reservation and reset/publish key lifecycle, per-product failure isolation, provider parity, and PostgreSQL translation of the scan query
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior
 - tests cover storefront cart creation, pricing, buyability validation, cart access-token ownership proof, checkout address validation, checkout conversion, idempotent checkout, and empty-cart validation
 
 Known storefront correctness/scaling gaps:
 
-- projection price resolution must respect price-list entry `ValidFromUtc`/`ValidToUtc`, matching cart repricing behavior
-- time-based projection refresh is needed for scheduled price windows that open or close without a write event
+- price-validity boundaries older than the configured worker lookback window are not recovered automatically; recovery after long worker downtime is an admin projection rebuild
+- the price-validity scan unions the four boundary sources and joins a grouped `MIN(ProjectedAtUtc)` per product; at large price-list volume it should become an indexed boundary query or a dedicated price-boundary projection
+- when two worker instances race on the same product, the losing pass stops early and resumes on the next scan interval
+- a product whose scheduled refresh was abandoned stays out of the scan until an operator resets that message, so its projection remains stale in the meantime
 - cart buyability validation should move from whole-context projection scans to variant-targeted lookup before catalog size grows materially
 - tax and company-specific price resolution are not part of the current storefront cart path
 
@@ -551,7 +556,7 @@ Exit criteria:
 
 ## Immediate Next Step
 
-Fix the three commerce correctness gates before starting payment provider work: tax-category/market tax resolution, storefront projection entry-window handling with scheduled refresh, and order-placement inventory allocation/deduction.
+Storefront projection entry-window handling with time-driven refresh is now done. Fix the two remaining commerce correctness gates before starting payment provider work: tax-category/market tax resolution and order-placement inventory allocation/deduction.
 
 After those fixes, run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
 

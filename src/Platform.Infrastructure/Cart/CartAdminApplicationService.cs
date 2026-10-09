@@ -89,7 +89,8 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
 
         var variants = (await _variantRepository.GetByIdsAsync(cart.Lines.Select(x => x.VariantId).Distinct().ToList(), cancellationToken)).ToDictionary(x => x.Id);
         var products = (await _productRepository.GetByIdsAsync(variants.Values.Select(x => x.ProductId).Distinct().ToList(), cancellationToken)).ToDictionary(x => x.Id);
-        var priceLists = await _priceListRepository.ListActiveByMarketAsync(cart.MarketId, cart.CurrencyCode, DateTime.UtcNow, cancellationToken);
+        var instantUtc = DateTime.UtcNow;
+        var priceLists = await _priceListRepository.ListActiveByMarketAsync(cart.MarketId, cart.CurrencyCode, instantUtc, cancellationToken);
 
         var updates = new List<CartPriceUpdate>(cart.Lines.Count);
         foreach (var line in cart.Lines)
@@ -104,7 +105,7 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
                 throw new RequestValidationException(nameof(line.VariantId), $"Unknown product for variant {line.VariantId}.");
             }
 
-            var pricing = ResolveVariantPricing(priceLists, line.VariantId, line.Quantity);
+            var pricing = ResolveVariantPricing(priceLists, line.VariantId, line.Quantity, instantUtc);
             if (pricing is null)
             {
                 throw new RequestValidationException(nameof(line.VariantId), $"No active price found for variant {variant.Sku}.");
@@ -128,7 +129,11 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
         return product.Translations.FirstOrDefault()?.Name ?? product.ProductNumber;
     }
 
-    internal static ResolvedPrice? ResolveVariantPricing(IReadOnlyList<Platform.Domain.Catalog.Pricing.PriceList> priceLists, Guid variantId, decimal quantity)
+    internal static ResolvedPrice? ResolveVariantPricing(
+        IReadOnlyList<Platform.Domain.Catalog.Pricing.PriceList> priceLists,
+        Guid variantId,
+        decimal quantity,
+        DateTime instantUtc)
     {
         const decimal defaultVatRate = 0.25m;
 
@@ -137,8 +142,7 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
             var entry = priceList.Entries
                 .Where(x => string.Equals(x.TargetType, "Variant", StringComparison.OrdinalIgnoreCase) && x.TargetId == variantId)
                 .Where(x => x.MinQuantity <= quantity)
-                .Where(x => !x.ValidFromUtc.HasValue || x.ValidFromUtc.Value <= DateTime.UtcNow)
-                .Where(x => !x.ValidToUtc.HasValue || x.ValidToUtc.Value >= DateTime.UtcNow)
+                .Where(x => x.IsValidAt(instantUtc))
                 .OrderByDescending(x => x.MinQuantity)
                 .ThenByDescending(x => x.ValidFromUtc)
                 .FirstOrDefault();

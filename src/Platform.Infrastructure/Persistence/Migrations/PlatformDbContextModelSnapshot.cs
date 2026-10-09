@@ -2318,6 +2318,10 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DedupKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -2356,6 +2360,11 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DedupKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OutboxMessage_DedupKey_Unpublished")
+                        .HasFilter("\"DedupKey\" IS NOT NULL AND \"PublishedAtUtc\" IS NULL");
 
                     b.HasIndex("NextProcessingAttemptAtUtc");
 

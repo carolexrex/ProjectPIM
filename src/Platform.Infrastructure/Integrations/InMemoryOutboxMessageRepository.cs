@@ -96,7 +96,27 @@ public sealed class InMemoryOutboxMessageRepository : IOutboxMessageRepository
     public Task AddAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _store.OutboxMessages[outboxMessage.Id] = outboxMessage;
+
+        if (outboxMessage.DedupKey is null)
+        {
+            _store.OutboxMessages[outboxMessage.Id] = outboxMessage;
+            return Task.CompletedTask;
+        }
+
+        // Stands in for the PostgreSQL partial unique index on unpublished dedup keys. Locking the shared
+        // store keeps the check-and-insert atomic, so concurrent producers behave the same way on
+        // both providers.
+        lock (_store.OutboxMessages)
+        {
+            if (_store.OutboxMessages.Values.Any(x =>
+                x.ReservesDedupKey && string.Equals(x.DedupKey, outboxMessage.DedupKey, StringComparison.Ordinal)))
+            {
+                throw new DuplicateOutboxDedupKeyException(outboxMessage.DedupKey);
+            }
+
+            _store.OutboxMessages[outboxMessage.Id] = outboxMessage;
+        }
+
         return Task.CompletedTask;
     }
 

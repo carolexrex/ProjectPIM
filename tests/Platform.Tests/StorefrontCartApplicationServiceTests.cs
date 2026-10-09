@@ -294,7 +294,8 @@ public sealed class StorefrontCartApplicationServiceTests
             new InMemoryPriceListRepository(store),
             new InMemoryProductAttributeRepository(store),
             new InMemoryProductRepository(store),
-            new InMemoryVariantRepository(store));
+            new InMemoryVariantRepository(store),
+            TimeProvider.System);
 
         var projections = builder.BuildForProductAsync(
             Guid.Parse("50000000-0000-0000-0000-000000000001"),

@@ -30,8 +30,6 @@ Current code status:
 
 Known implementation gaps:
 
-- projection price resolution currently needs to filter price-list entry `ValidFromUtc`/`ValidToUtc` the same way cart repricing does
-- scheduled price windows need a time-based refresh pass, because no write event fires when a price simply becomes active or expires
 - storefront cart buyability validation currently scans/deserializes the context projection set; add variant-targeted lookup before real catalog volume
 - tax-category/market tax rates and company/customer-specific pricing are not part of the current projection/cart path
 
@@ -310,6 +308,14 @@ Recommended rule for the first projection:
 - also store per-variant resolved price in the variant payload
 - resolve only currently valid price-list entries; list-level and entry-level validity windows must match cart repricing behavior
 
+Implemented behavior:
+
+- `StorefrontProjectionBuilder` captures one UTC instant per product build and uses it for the price-list query, the price-list-entry eligibility check, and the stored `ProjectedAtUtc`, so a projection can never record a price it did not actually resolve at that instant
+- entry eligibility lives in the domain (`PriceListEntry.IsValidAt`) and is inclusive on both bounds: an entry is eligible when `ValidFromUtc` is null or at/before the instant, and `ValidToUtc` is null or at/after the instant
+- cart repricing uses the same predicate against a single captured instant, so a projected price stays quotable in the cart
+- price-list priority, quantity-break selection (`MinQuantity <= 1` for the storefront unit price), currency, market assignment, and VAT-included handling are unchanged; ineligible entries simply fall through to the next eligible entry, then to the next price list
+- when no entry is eligible, the variant and product carry `MissingPrice` and are not buyable
+
 That makes:
 
 - product price sort cheap
@@ -571,7 +577,56 @@ Current implementation status:
 - refresh processing coalesces each batch into distinct product ids before rebuilding projections, falls back to per-message processing when the coalesced batch fails, marks invalid refresh payloads complete after logging a warning, and logs message/product counts for observability
 - internal storefront refresh messages persist attempt count, last error, next retry time, and abandonment state after repeated failures
 - the documented direct dependency fan-outs for Phase 3 are now covered; remaining hardening is operational monitoring and admin/operator visibility
-- time-based refresh for scheduled price-list entry windows is not implemented; a worker pass should enqueue affected products when entry/list windows open or close without a write mutation
+- time-based refresh for scheduled price windows is implemented as a worker-hosted price-validity scan (see below)
+
+### Phase 3b: Time-Driven Price Validity Refresh
+
+Price-list and price-list-entry validity windows change what a projection should contain
+without any write mutation, so no outbox event fires when a scheduled price simply starts or
+expires. `IStorefrontPriceValidityRefreshService` closes that gap:
+
+1. the worker runs the pass on a configurable interval (`Worker:IntegrationJobs:StorefrontPriceValidity*`), immediately before refresh-message processing
+2. `IStorefrontPriceValidityScanRepository` returns, in one query, the products whose oldest `ProjectedAtUtc` is at or before the latest price-list or price-list-entry boundary — list-level and entry-level `ValidFromUtc`/`ValidToUtc` — that passed inside a bounded lookback window ending at the captured instant
+3. the same query excludes products that already hold an unpublished scheduled request, before ordering and capping, so pending, delayed, and abandoned work never consumes the page
+4. the remaining products are enqueued as ordinary storefront projection refresh requests — **one message per product** — and rebuilt by the existing refresh pipeline
+
+Properties:
+
+- **targeted**, not a periodic full rebuild: only products behind a passed boundary are refreshed
+- **bounded with forward progress**: the per-pass cap is applied to products the query already
+  determined are stale *and* unscheduled, so every page contains work that still needs queueing.
+  Products cannot be starved behind already-current ones, nor behind products whose earlier
+  boundaries put them at the front of the queue while they wait out a retry
+- **idempotent without a watermark**: once rebuilt, the product's projections are newer than the
+  boundary, so it is no longer selected
+- **atomically non-duplicating**: `OutboxMessage.DedupKey` identifies the product's outstanding
+  refresh and a PostgreSQL partial unique index (`IX_OutboxMessage_DedupKey_Unpublished`, added by
+  the `AddOutboxDedupKey` and `AlignOutboxDedupKeyReservationScope` migrations) permits at most one
+  *unpublished* message per key. Re-scanning before the refresh runs, and several Worker instances
+  scanning at once, converge on one request. The key is product-scoped on purpose: a refresh
+  rebuilds the product at the instant it runs, so one unpublished request already covers every
+  boundary that passed for that product, including boundaries that pass while the request waits out
+  a retry delay — the delay is never bypassed by a fresh message. The in-memory provider enforces
+  the same rule under a store lock
+- **explicit about failure**: only publishing releases a key. An abandoned request keeps its
+  reservation, so exhausted work is never silently replaced by a fresh message; it stays visible as
+  an abandoned message and returns to service through the admin reset workflow, which reuses the
+  same message and therefore cannot collide with its own reservation
+- **failure-isolating**: one message per product means the refresh processor's per-message fallback
+  retries only the product that failed; the rest of the page completes and stops being selected
+
+Remaining limitations:
+
+- boundaries older than the configured lookback window are not recovered automatically. After worker downtime longer than the lookback, use the admin projection rebuild job
+- the scan query unions the four boundary sources and joins them against a grouped `MIN(ProjectedAtUtc)` per product. It is correct and bounded, but at large price-list volume it should become an indexed query — a partial index on entry `ValidFromUtc`/`ValidToUtc`, or a dedicated price-boundary projection — rather than a repeated aggregate over the full projection table
+- when two Worker instances race on the same product, the losing pass stops early and lets the next
+  scan continue from a clean persistence session. This costs one scan interval of latency for the
+  remaining candidates in that pass; it never loses work or duplicates it
+- a product with an abandoned request stays out of the scan until an operator resets or otherwise
+  resolves that message. This is deliberate — automatic replacement would hide repeated failures —
+  but it means an abandoned price-validity refresh leaves that product's projection stale until the
+  admin reset workflow runs. Watch the abandoned storefront-refresh message count
+- only `Variant`-targeted entries are considered, matching what the projection builder consumes today. Product-targeted entries need to be added here at the same time they are added to the builder
 
 ### Phase 4: Search Refinement
 

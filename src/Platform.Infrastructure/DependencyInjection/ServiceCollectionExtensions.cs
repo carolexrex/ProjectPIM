@@ -60,6 +60,8 @@ public static class ServiceCollectionExtensions
         services.AddOptions<StorefrontCartAccessTokenOptions>()
             .BindConfiguration(StorefrontCartAccessTokenOptions.SectionName);
 
+        services.TryAddSingleton(TimeProvider.System);
+
         services.AddScoped<IProductAdminApplicationService, InMemoryProductAdminApplicationService>();
         services.AddScoped<IVariantAdminApplicationService, InMemoryVariantAdminApplicationService>();
         services.AddScoped<IBrandAdminApplicationService, BrandAdminApplicationService>();
@@ -92,6 +94,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStorefrontProjectionRefreshService, StorefrontProjectionRefreshService>();
         services.AddScoped<IStorefrontProjectionRefreshRequestPublisher, StorefrontProjectionRefreshRequestPublisher>();
         services.AddScoped<IStorefrontProjectionOutboxProcessor, StorefrontProjectionOutboxProcessor>();
+        services.AddScoped<IStorefrontPriceValidityRefreshService, StorefrontPriceValidityRefreshService>();
         services.AddScoped<ICategoryAdminApplicationService, InMemoryCategoryAdminApplicationService>();
         services.AddScoped<IProductAttributeAdminApplicationService, InMemoryProductAttributeAdminApplicationService>();
         services.AddScoped<IMediaAssetAdminApplicationService, MediaAssetAdminApplicationService>();
@@ -135,6 +138,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProductStatusDefinitionRepository, InMemoryProductStatusDefinitionRepository>();
         services.AddScoped<IProductStatusDefinitionApplicationService, ProductStatusDefinitionApplicationService>();
         services.AddScoped<IStorefrontProductProjectionRepository, InMemoryStorefrontProductProjectionRepository>();
+        services.AddScoped<IStorefrontPriceValidityScanRepository, InMemoryStorefrontPriceValidityScanRepository>();
         services.AddScoped<IStorefrontProjectionChangeTracker, NoOpStorefrontProjectionChangeTracker>();
         services.AddScoped<IVariantRepository, InMemoryVariantRepository>();
         services.AddScoped<IWebhookSubscriptionRepository, InMemoryWebhookSubscriptionRepository>();
@@ -176,6 +180,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProductStatusDefinitionRepository, EfProductStatusDefinitionRepository>();
         services.AddScoped<IProductStatusDefinitionApplicationService, ProductStatusDefinitionApplicationService>();
         services.AddScoped<IStorefrontProductProjectionRepository, EfStorefrontProductProjectionRepository>();
+        services.AddScoped<IStorefrontPriceValidityScanRepository, EfStorefrontPriceValidityScanRepository>();
         services.AddScoped<IStorefrontProjectionChangeTracker, EfStorefrontProjectionChangeTracker>();
         services.AddScoped<IVariantRepository, EfVariantRepository>();
         services.AddScoped<IWebhookSubscriptionRepository, EfWebhookSubscriptionRepository>();

@@ -26,6 +26,10 @@ public sealed class IntegrationJobWorker : BackgroundService
         var maxJobsPerCycle = Math.Max(1, _options.Value.MaxJobsPerCycle);
         var maxOutboxMessagesPerCycle = Math.Max(1, _options.Value.MaxOutboxMessagesPerCycle);
         var maxWebhookDeliveriesPerCycle = Math.Max(1, _options.Value.MaxWebhookDeliveriesPerCycle);
+        var priceValidityScanInterval = TimeSpan.FromSeconds(Math.Max(1, _options.Value.StorefrontPriceValidityScanIntervalSeconds));
+        var priceValidityLookback = TimeSpan.FromMinutes(Math.Max(1, _options.Value.StorefrontPriceValidityLookbackMinutes));
+        var maxPriceValidityProductsPerCycle = Math.Max(1, _options.Value.MaxStorefrontPriceValidityProductsPerCycle);
+        var nextPriceValidityScanAtUtc = DateTime.UtcNow;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -38,6 +42,22 @@ public sealed class IntegrationJobWorker : BackgroundService
                 var webhookDeliveryExecutionService = scope.ServiceProvider.GetRequiredService<IWebhookDeliveryExecutionService>();
 
                 var executed = await integrationJobExecutionService.ExecutePendingAsync(maxJobsPerCycle, stoppingToken);
+
+                // Runs before refresh-message processing so the requests it enqueues are consumed in
+                // the same cycle. Duplicate suppression does not depend on that ordering: each
+                // request carries a product/boundary dedup key that persistence keeps unique while
+                // the request is open, so repeated scans and parallel Worker instances converge on
+                // one request per product and boundary.
+                if (_options.Value.StorefrontPriceValidityRefreshEnabled && DateTime.UtcNow >= nextPriceValidityScanAtUtc)
+                {
+                    var priceValidityRefreshService = scope.ServiceProvider.GetRequiredService<IStorefrontPriceValidityRefreshService>();
+                    await priceValidityRefreshService.EnqueueDuePriceBoundaryRefreshesAsync(
+                        priceValidityLookback,
+                        maxPriceValidityProductsPerCycle,
+                        stoppingToken);
+                    nextPriceValidityScanAtUtc = DateTime.UtcNow.Add(priceValidityScanInterval);
+                }
+
                 var refreshed = await storefrontProjectionOutboxProcessor.ExecutePendingAsync(
                     Math.Max(maxOutboxMessagesPerCycle, _options.Value.MaxStorefrontProjectionRefreshMessagesPerCycle),
                     stoppingToken);

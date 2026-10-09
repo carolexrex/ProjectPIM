@@ -13,6 +13,9 @@ builder.Services.AddOptions<IntegrationJobWorkerOptions>()
     .Validate(options => options.MaxStorefrontProjectionRefreshMessagesPerCycle > 0, "Worker:IntegrationJobs:MaxStorefrontProjectionRefreshMessagesPerCycle must be greater than zero.")
     .Validate(options => options.MaxOutboxMessagesPerCycle > 0, "Worker:IntegrationJobs:MaxOutboxMessagesPerCycle must be greater than zero.")
     .Validate(options => options.MaxWebhookDeliveriesPerCycle > 0, "Worker:IntegrationJobs:MaxWebhookDeliveriesPerCycle must be greater than zero.")
+    .Validate(options => options.StorefrontPriceValidityScanIntervalSeconds > 0, "Worker:IntegrationJobs:StorefrontPriceValidityScanIntervalSeconds must be greater than zero.")
+    .Validate(options => options.StorefrontPriceValidityLookbackMinutes > 0, "Worker:IntegrationJobs:StorefrontPriceValidityLookbackMinutes must be greater than zero.")
+    .Validate(options => options.MaxStorefrontPriceValidityProductsPerCycle > 0, "Worker:IntegrationJobs:MaxStorefrontPriceValidityProductsPerCycle must be greater than zero.")
     .ValidateOnStart();
 builder.Services.AddCatalogPersistence(builder.Configuration);
 builder.Services.AddHostedService<IntegrationJobWorker>();

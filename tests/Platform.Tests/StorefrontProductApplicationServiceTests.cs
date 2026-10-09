@@ -245,7 +245,8 @@ public sealed class StorefrontProductApplicationServiceTests
                 new InMemoryPriceListRepository(store),
                 new InMemoryProductAttributeRepository(store),
                 new InMemoryProductRepository(store),
-                new InMemoryVariantRepository(store)),
+                new InMemoryVariantRepository(store),
+                TimeProvider.System),
             projectionRepository,
             new InMemoryProductRepository(store),
             new InMemoryUnitOfWork());

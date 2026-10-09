@@ -5,6 +5,7 @@ namespace Platform.Domain.Integrations;
 public sealed class OutboxMessage
 {
     private const int MaxProcessingErrorLength = 2048;
+    private const int MaxDedupKeyLength = 128;
 
     private OutboxMessage()
     {
@@ -21,7 +22,8 @@ public sealed class OutboxMessage
         string aggregateType,
         Guid aggregateId,
         string payloadJson,
-        DateTime occurredAtUtc)
+        DateTime occurredAtUtc,
+        string? dedupKey = null)
     {
         Id = id;
         EventType = NormalizeRequired(eventType);
@@ -31,6 +33,7 @@ public sealed class OutboxMessage
         OccurredAtUtc = occurredAtUtc;
         CreatedAtUtc = occurredAtUtc;
         UpdatedAtUtc = occurredAtUtc;
+        DedupKey = NormalizeDedupKey(dedupKey);
         RowVersion = NewRowVersion();
     }
 
@@ -39,6 +42,16 @@ public sealed class OutboxMessage
     public string AggregateType { get; private set; }
     public Guid AggregateId { get; private set; }
     public string PayloadJson { get; private set; }
+
+    /// <summary>
+    /// Optional scheduling identity. At most one unpublished message may hold a given key, so a
+    /// producer that can recompute the same unit of work — such as the time-driven storefront
+    /// price-validity scan — cannot stack duplicates. The reservation is held for as long as the
+    /// message is unpublished, abandonment included: an abandoned message keeps its key so failed
+    /// work is never silently replaced by a fresh message, and is returned to service through the
+    /// admin reset workflow (<see cref="ResetProcessingForReplay"/>) instead.
+    /// </summary>
+    public string? DedupKey { get; private set; }
     public DateTime OccurredAtUtc { get; private set; }
     public DateTime? PublishedAtUtc { get; private set; }
     public int ProcessingAttemptCount { get; private set; }
@@ -51,6 +64,19 @@ public sealed class OutboxMessage
 
     public bool IsPublished => PublishedAtUtc.HasValue;
     public bool IsProcessingAbandoned => ProcessingAbandonedAtUtc.HasValue;
+
+    /// <summary>
+    /// True while the message still represents runnable work: pending, delayed for retry, or being
+    /// processed. Abandoned and published messages are not runnable.
+    /// </summary>
+    public bool IsOpen => !IsPublished && !IsProcessingAbandoned;
+
+    /// <summary>
+    /// True while the message holds its <see cref="DedupKey"/> against other producers. Only
+    /// publishing releases the key; an abandoned message keeps its reservation so the failure stays
+    /// visible and requires the admin reset workflow rather than being rescheduled automatically.
+    /// </summary>
+    public bool ReservesDedupKey => DedupKey is not null && !IsPublished;
 
     public void MarkPublished(string rowVersion)
     {
@@ -154,6 +180,22 @@ public sealed class OutboxMessage
         return normalized.Length <= MaxProcessingErrorLength
             ? normalized
             : normalized[..MaxProcessingErrorLength];
+    }
+
+    private static string? NormalizeDedupKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > MaxDedupKeyLength)
+        {
+            throw new ArgumentException($"The outbox dedup key exceeds {MaxDedupKeyLength} characters.", nameof(value));
+        }
+
+        return normalized;
     }
 
     private static string NewRowVersion()

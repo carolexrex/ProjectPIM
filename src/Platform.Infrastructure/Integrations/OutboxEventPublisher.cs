@@ -12,11 +12,33 @@ public sealed class OutboxEventPublisher : IOutboxEventPublisher
         _outboxMessageRepository = outboxMessageRepository;
     }
 
-    public async Task EnqueueAsync(
+    public Task EnqueueAsync(
         string eventType,
         string aggregateType,
         Guid aggregateId,
         string payloadJson,
+        CancellationToken cancellationToken)
+    {
+        return AddAsync(eventType, aggregateType, aggregateId, payloadJson, null, cancellationToken);
+    }
+
+    public Task EnqueueDeduplicatedAsync(
+        string eventType,
+        string aggregateType,
+        Guid aggregateId,
+        string payloadJson,
+        string dedupKey,
+        CancellationToken cancellationToken)
+    {
+        return AddAsync(eventType, aggregateType, aggregateId, payloadJson, dedupKey, cancellationToken);
+    }
+
+    private async Task AddAsync(
+        string eventType,
+        string aggregateType,
+        Guid aggregateId,
+        string payloadJson,
+        string? dedupKey,
         CancellationToken cancellationToken)
     {
         var message = new OutboxMessage(
@@ -25,7 +47,8 @@ public sealed class OutboxEventPublisher : IOutboxEventPublisher
             aggregateType,
             aggregateId,
             payloadJson,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            dedupKey);
 
         await _outboxMessageRepository.AddAsync(message, cancellationToken);
     }
