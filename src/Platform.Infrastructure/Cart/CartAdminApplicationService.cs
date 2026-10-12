@@ -3,12 +3,15 @@ using Platform.Application.Abstractions.Persistence;
 using Platform.Application.Cart;
 using Platform.Application.Cart.Commands;
 using Platform.Application.Cart.Queries;
+using Platform.Application.Catalog.Markets;
 using Platform.Application.Catalog.Pricing;
 using Platform.Application.Catalog.Products;
+using Platform.Application.Catalog.Tax;
 using Platform.Application.Catalog.Variants;
 using Platform.Contracts.Cart;
 using Platform.Contracts.Common;
 using Platform.Domain.Cart;
+using Platform.Domain.Catalog.Tax;
 
 namespace Platform.Infrastructure.Cart;
 
@@ -18,6 +21,8 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
     private readonly IPriceListRepository _priceListRepository;
     private readonly IVariantRepository _variantRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IVatRuleRepository _vatRuleRepository;
+    private readonly IMarketRepository _marketRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CartAdminApplicationService(
@@ -25,12 +30,16 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
         IPriceListRepository priceListRepository,
         IVariantRepository variantRepository,
         IProductRepository productRepository,
+        IVatRuleRepository vatRuleRepository,
+        IMarketRepository marketRepository,
         IUnitOfWork unitOfWork)
     {
         _cartRepository = cartRepository;
         _priceListRepository = priceListRepository;
         _variantRepository = variantRepository;
         _productRepository = productRepository;
+        _vatRuleRepository = vatRuleRepository;
+        _marketRepository = marketRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -80,6 +89,12 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
         return MapDetails(cart);
     }
 
+    /// <summary>
+    /// The single pricing path for admin repricing, storefront carts, checkout, and manual orders.
+    /// Each line gets its net unit price from the market's active price lists and its VAT rate from
+    /// the VAT rule for (cart market, product tax category). Missing prices or VAT rules fail the
+    /// whole cart with validation errors; no default rate is ever assumed.
+    /// </summary>
     public async Task<IReadOnlyList<CartPriceUpdate>> ResolveCartPricingAsync(Platform.Domain.Cart.Cart cart, CancellationToken cancellationToken)
     {
         if (cart.Lines.Count == 0)
@@ -91,24 +106,38 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
         var products = (await _productRepository.GetByIdsAsync(variants.Values.Select(x => x.ProductId).Distinct().ToList(), cancellationToken)).ToDictionary(x => x.Id);
         var instantUtc = DateTime.UtcNow;
         var priceLists = await _priceListRepository.ListActiveByMarketAsync(cart.MarketId, cart.CurrencyCode, instantUtc, cancellationToken);
+        var vatRates = (await _vatRuleRepository.ListByMarketAsync(cart.MarketId, cancellationToken))
+            .ToDictionary(x => x.TaxCategoryCode, x => x.Rate, StringComparer.Ordinal);
 
+        var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var missingVatRules = new List<(string TaxCategoryCode, string Sku)>();
         var updates = new List<CartPriceUpdate>(cart.Lines.Count);
         foreach (var line in cart.Lines)
         {
             if (!variants.TryGetValue(line.VariantId, out var variant))
             {
-                throw new RequestValidationException(nameof(line.VariantId), $"Unknown variant {line.VariantId}.");
+                AddError(errors, nameof(line.VariantId), $"Unknown variant {line.VariantId}.");
+                continue;
             }
 
             if (!products.TryGetValue(variant.ProductId, out var product))
             {
-                throw new RequestValidationException(nameof(line.VariantId), $"Unknown product for variant {line.VariantId}.");
+                AddError(errors, nameof(line.VariantId), $"Unknown product for variant {line.VariantId}.");
+                continue;
             }
 
-            var pricing = ResolveVariantPricing(priceLists, line.VariantId, line.Quantity, instantUtc);
+            var taxCategoryCode = VatRule.NormalizeTaxCategoryCode(product.TaxCategoryCode);
+            if (!vatRates.TryGetValue(taxCategoryCode, out var vatRate))
+            {
+                missingVatRules.Add((taxCategoryCode, variant.Sku));
+                continue;
+            }
+
+            var pricing = ResolveVariantPricing(priceLists, line.VariantId, line.Quantity, instantUtc, vatRate);
             if (pricing is null)
             {
-                throw new RequestValidationException(nameof(line.VariantId), $"No active price found for variant {variant.Sku}.");
+                AddError(errors, nameof(line.VariantId), $"No active price found for variant {variant.Sku}.");
+                continue;
             }
 
             updates.Add(new CartPriceUpdate(
@@ -121,6 +150,26 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
                 line.Comment));
         }
 
+        if (missingVatRules.Count > 0)
+        {
+            var market = await _marketRepository.GetByIdAsync(cart.MarketId, cancellationToken);
+            var marketLabel = market?.Code ?? cart.MarketId.ToString();
+            foreach (var group in missingVatRules.GroupBy(x => x.TaxCategoryCode, StringComparer.Ordinal))
+            {
+                var category = group.Key.Length == 0 ? "(none)" : group.Key;
+                var skus = string.Join(", ", group.Select(x => x.Sku).Distinct(StringComparer.Ordinal));
+                AddError(
+                    errors,
+                    nameof(VatRule.TaxCategoryCode),
+                    $"No VAT rule is configured for tax category '{category}' in market '{marketLabel}'; cannot price variant(s) {skus}.");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new RequestValidationException(errors.ToDictionary(x => x.Key, x => x.Value.ToArray(), StringComparer.Ordinal));
+        }
+
         return updates;
     }
 
@@ -129,14 +178,20 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
         return product.Translations.FirstOrDefault()?.Name ?? product.ProductNumber;
     }
 
+    /// <summary>
+    /// Selects the first price list (already ordered by market priority) with an eligible entry: the
+    /// highest quantity break not above <paramref name="quantity"/> that is valid at
+    /// <paramref name="instantUtc"/>. VAT-inclusive amounts are converted to net using
+    /// <paramref name="vatRate"/> and rounded to two decimals, midpoint away from zero; net amounts are
+    /// used as-is.
+    /// </summary>
     internal static ResolvedPrice? ResolveVariantPricing(
         IReadOnlyList<Platform.Domain.Catalog.Pricing.PriceList> priceLists,
         Guid variantId,
         decimal quantity,
-        DateTime instantUtc)
+        DateTime instantUtc,
+        decimal vatRate)
     {
-        const decimal defaultVatRate = 0.25m;
-
         foreach (var priceList in priceLists)
         {
             var entry = priceList.Entries
@@ -153,13 +208,27 @@ public sealed class CartAdminApplicationService : ICartAdminApplicationService
             }
 
             var unitPrice = priceList.VatIncluded
-                ? decimal.Round(entry.Amount / (1m + defaultVatRate), 2, MidpointRounding.AwayFromZero)
+                ? decimal.Round(entry.Amount / (1m + vatRate), 2, MidpointRounding.AwayFromZero)
                 : entry.Amount;
 
-            return new ResolvedPrice(unitPrice, defaultVatRate);
+            return new ResolvedPrice(unitPrice, vatRate);
         }
 
         return null;
+    }
+
+    private static void AddError(Dictionary<string, List<string>> errors, string key, string message)
+    {
+        if (!errors.TryGetValue(key, out var messages))
+        {
+            messages = [];
+            errors[key] = messages;
+        }
+
+        if (!messages.Contains(message, StringComparer.Ordinal))
+        {
+            messages.Add(message);
+        }
     }
 
     private static CartSummaryDto MapSummary(Platform.Domain.Cart.Cart cart)

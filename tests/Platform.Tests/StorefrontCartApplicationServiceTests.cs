@@ -12,6 +12,7 @@ using Platform.Infrastructure.Catalog.Markets;
 using Platform.Infrastructure.Catalog.Media;
 using Platform.Infrastructure.Catalog.Pricing;
 using Platform.Infrastructure.Catalog.Products;
+using Platform.Infrastructure.Catalog.Tax;
 using Platform.Infrastructure.Catalog.Variants;
 using Platform.Infrastructure.Companies;
 using Platform.Infrastructure.Customers;
@@ -256,6 +257,8 @@ public sealed class StorefrontCartApplicationServiceTests
             new InMemoryPriceListRepository(store),
             new InMemoryVariantRepository(store),
             new InMemoryProductRepository(store),
+            new InMemoryVatRuleRepository(store),
+            new InMemoryMarketRepository(store),
             new InMemoryUnitOfWork());
         var orderService = new OrderAdminApplicationService(
             orderRepository,
@@ -264,6 +267,8 @@ public sealed class StorefrontCartApplicationServiceTests
             new InMemoryCustomerRepository(store),
             new InMemoryMarketRepository(store),
             cartPricingService,
+            InventoryTestServices.CreateReservationService(store),
+            InventoryTestServices.CreateCoordinator(store),
             new InMemoryUnitOfWork());
         var contextService = new StorefrontContextApplicationService(
             new InMemoryChannelRepository(store),

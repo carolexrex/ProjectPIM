@@ -85,5 +85,19 @@ public sealed record StorefrontCheckoutResult(
         return new StorefrontCheckoutResult(null, StorefrontContextResolutionStatus.Unauthorized, null, null, EmptyErrors);
     }
 
+    /// <summary>
+    /// The checkout lost a concurrent race that retrying inside the request did not resolve.
+    /// The client may retry with the same cart row version; nothing was committed.
+    /// </summary>
+    public static StorefrontCheckoutResult Conflict(string message)
+    {
+        return new StorefrontCheckoutResult(
+            null,
+            StorefrontContextResolutionStatus.Conflict,
+            null,
+            null,
+            new Dictionary<string, string[]> { ["Checkout"] = [message] });
+    }
+
     private static readonly IReadOnlyDictionary<string, string[]> EmptyErrors = new Dictionary<string, string[]>();
 }

@@ -15,6 +15,7 @@ public sealed class InventoryTransactionConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.Id).ValueGeneratedNever();
         builder.Property(x => x.Type).HasMaxLength(32).IsRequired();
         builder.Property(x => x.QuantityDelta).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.ReservedQuantityDelta).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.ReferenceType).HasMaxLength(32).IsRequired();
         builder.Property(x => x.OccurredAtUtc).IsRequired();
         builder.Property(x => x.CreatedAtUtc).IsRequired();

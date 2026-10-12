@@ -7,6 +7,15 @@ public interface IInventoryBalanceRepository
     Task<InventoryBalance?> GetByInventoryLocationAndVariantAsync(Guid inventoryLocationId, Guid variantId, CancellationToken cancellationToken);
     Task<IReadOnlyList<InventoryBalance>> ListByInventoryLocationAsync(Guid inventoryLocationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<InventoryBalance>> ListByVariantAsync(Guid variantId, CancellationToken cancellationToken);
+
+    /// <summary>Balances for the given variants at the given locations, tracked for update.</summary>
+    Task<IReadOnlyList<InventoryBalance>> ListForUpdateAsync(
+        IReadOnlyCollection<Guid> variantIds,
+        IReadOnlyCollection<Guid> inventoryLocationIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Balances by id, tracked for update.</summary>
+    Task<IReadOnlyList<InventoryBalance>> GetByIdsForUpdateAsync(IReadOnlyCollection<Guid> inventoryBalanceIds, CancellationToken cancellationToken);
     Task<IReadOnlyList<InventoryTransaction>> ListTransactionsByInventoryLocationAsync(Guid inventoryLocationId, int take, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, int>> CountByInventoryLocationIdsAsync(IReadOnlyCollection<Guid> inventoryLocationIds, CancellationToken cancellationToken);
     Task AddAsync(InventoryBalance inventoryBalance, CancellationToken cancellationToken);

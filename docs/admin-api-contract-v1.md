@@ -494,7 +494,7 @@ Current implementation status:
 
 - Current API supports price lists, market assignments, priorities/base-list flags, entries, list validity windows, and entry validity windows.
 - Current API does not expose `companyId` on price lists. Company/customer-specific pricing is target design only.
-- Tax-category rates are not exposed; cart/order tax calculation should not be treated as complete.
+- VAT rates are configured separately as VAT rules per market and tax category (see `VAT Rules`); `vatIncluded` only states whether entry amounts include VAT.
 
 ### List Price Lists
 
@@ -583,6 +583,95 @@ Request:
 
 Use for imports and mass pricing updates.
 
+## VAT Rules
+
+VAT rules configure the rate cart pricing applies to a product, keyed by market and the product's `taxCategoryCode`. Cart pricing (admin reprice, storefront carts, checkout, manual orders) never assumes a rate: a cart line whose market has no rule for its product tax category fails with a `400` validation error under `errors.TaxCategoryCode`. Placed orders keep their VAT snapshot when rules change.
+
+Authorization: reads require `PricingRead`; writes require `PricingWrite`.
+
+Rule fields:
+
+- `rate` is a fraction (`0.25` = 25%) from `0` up to but excluding `1`, with at most four decimals. `0` is valid and must be sent explicitly; an omitted `rate` is rejected.
+- `taxCategoryCode` is trimmed and upper-cased; matching against products is case-insensitive.
+- One rule per market and tax category; a duplicate create returns `409`.
+- Updates and deletes require the current `rowVersion`; a stale value returns `409`.
+- Market and tax category are immutable; to move a rule, delete it and create a new one.
+
+### List VAT Rules
+
+`GET /api/admin/vat-rules`
+
+Query parameters:
+
+- `marketId`
+- `taxCategoryCode`
+- `page`, `pageSize`
+
+### Get VAT Rule
+
+`GET /api/admin/vat-rules/{id}`
+
+Response:
+
+```json
+{
+  "id": "64100000-0000-0000-0000-000000000001",
+  "marketId": "62000000-0000-0000-0000-000000000001",
+  "marketCode": "SE",
+  "taxCategoryCode": "STANDARD",
+  "rate": 0.25,
+  "description": "Sweden standard rate",
+  "createdAtUtc": "2026-10-10T08:00:00Z",
+  "updatedAtUtc": "2026-10-10T08:00:00Z",
+  "rowVersion": "..."
+}
+```
+
+### Create VAT Rule
+
+`POST /api/admin/vat-rules` returns `201 Created`.
+
+Request:
+
+```json
+{
+  "marketId": "62000000-0000-0000-0000-000000000001",
+  "taxCategoryCode": "STANDARD",
+  "rate": 0.25,
+  "description": "Sweden standard rate"
+}
+```
+
+### Update VAT Rule
+
+`PUT /api/admin/vat-rules/{id}`
+
+Request:
+
+```json
+{
+  "rate": 0.12,
+  "description": "Reduced rate",
+  "rowVersion": "..."
+}
+```
+
+### Delete VAT Rule
+
+`POST /api/admin/vat-rules/{id}/delete` returns `204 No Content`.
+
+Request:
+
+```json
+{
+  "rowVersion": "..."
+}
+```
+
+Deleting a rule that products in the market still use makes their carts fail pricing until a rule is configured again.
+
+Out of scope for VAT rules today: destination-based taxation, customer/company exemptions, and B2B reverse charge.
+
 ## Inventory API
 
 ## Inventory Locations
@@ -649,9 +738,16 @@ Request:
   "onHandQuantity": 25,
   "reservedQuantity": 2,
   "incomingQuantity": 10,
-  "backorderable": false
+  "backorderable": false,
+  "rowVersion": "..."
 }
 ```
+
+Rules:
+
+- `reservedQuantity` covers open order allocations plus any holds recorded outside the platform. It cannot be set below the quantity open orders hold on the balance (`400` with `errors.ReservedQuantity`); orders release and ship only their own allocated quantities.
+- `rowVersion` is optional. When supplied it must match (`409` otherwise). When omitted, a checkout or settlement that changes the balance between this request's read and write causes the write to be re-run against the fresh row, so the reserved-floor rule is re-checked and no reservation is lost.
+- `onHandQuantity` may fall below `reservedQuantity` (a stock count found less than is promised). Orders on that balance can then still be cancelled, but completing them is refused until stock is restored.
 
 ### Adjust Inventory
 
@@ -669,6 +765,10 @@ Request:
   "referenceId": "75000000-0000-0000-0000-000000000001"
 }
 ```
+
+Adjustments change on-hand stock only and are validated before anything changes (a non-backorderable balance cannot go below zero on hand). A concurrent checkout on the same balance makes the adjustment re-run against the fresh row instead of overwriting the reservation.
+
+Inventory transactions in location details carry `quantityDelta` (on-hand change) and `reservedQuantityDelta` (reserved change). Types: `Adjustment` (on hand), `Reservation` (+reserved, order placement), `ReservationRelease` (−reserved, order cancellation), `Shipment` (−on hand and −reserved, order completion). Order-driven transactions use `referenceType` `Order` and the order id.
 
 ## Customer API
 
@@ -822,11 +922,20 @@ Response should include:
 - payment transactions
 - status history
 
-### Create Manual Order
+### Create Order
 
 `POST /api/admin/orders`
 
 Use sparingly in v1. Prefer cart-to-order conversion.
+
+- Cart conversion: send `cartId` and `cartRowVersion`. Repeating it for a converted cart returns the original order.
+- Manual order: omit `cartId` and send `marketId`, `currencyCode`, `cultureCode`, `email`, and `lines` (`variantId`, `quantity`, `comment`). Optional ids may be omitted or `null`; when present they must be non-empty GUIDs.
+
+Both paths price through the shared cart pricing path and reserve stock in the same commit (see `InventoryAllocation` in `domain-spec-v1.md`). Errors:
+
+- `400` with `errors["VariantId.{variantId}"]` when a variant is short in the order market, e.g. `Insufficient stock for SKU-EXAMPLE-1-BLACK in market 'SE': requested 24, available 23.`, or is not stocked at any active location assigned to the market, or the quantity has more than 4 decimal places
+- `400` with `errors.TaxCategoryCode` when no VAT rule exists
+- `409` when a concurrent write could not be resolved by the in-request retry; nothing was committed
 
 ### Change Order Status
 
@@ -837,9 +946,19 @@ Request:
 ```json
 {
   "toStatus": "Processing",
-  "comment": "Picked up by warehouse."
+  "comment": "Picked up by warehouse.",
+  "rowVersion": "..."
 }
 ```
+
+Transitions: `Placed` → `Processing` | `Cancelled`; `Processing` → `Completed` | `Cancelled`.
+
+Inventory effects:
+
+- `Cancelled` releases every outstanding allocation once (`reservedQuantity` decreases).
+- `Completed` ships every outstanding allocation once (`onHandQuantity` and `reservedQuantity` decrease). It returns `400` with `errors["VariantId.{variantId}"]`, changing nothing, when a balance no longer holds the allocated quantity on hand (for example backordered stock that has not arrived, or stock counted away).
+- Orders placed before inventory allocations existed change no stock when cancelled or completed.
+- A stale `rowVersion` returns `409`.
 
 ### Add Payment Transaction
 

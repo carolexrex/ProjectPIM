@@ -19,8 +19,8 @@ This is the implementation-oriented companion to [admin-api-contract-v1.md](./ad
 
 This document describes the intended module ownership shape. The current code implements most admin foundations, but a few ownership areas are still target-only:
 
-- pricing has price lists, entries, market assignments, and cart repricing, but not tax-category/market tax resolution or company/customer-specific price selection
-- inventory has locations, balances, adjustments, transactions, and availability diagnostics, but not reservations or order allocation/deduction
+- pricing has price lists, entries, market assignments, market/tax-category VAT rules, and cart repricing, but not destination-based tax, exemptions, reverse charge, or company/customer-specific price selection
+- inventory has locations, balances, adjustments, transactions, availability diagnostics, and order inventory allocations (`IInventoryReservationService`: reserve on placement, release on cancellation, ship on completion), but not expiring cart/payment holds, partial shipments, returns, or transfers
 - product status definitions are persisted with the target schema shape, but the current domain/application/API surface only exposes buyability
 - integrations have persisted brand/product import-export jobs, but not the staged sources, connector definitions, dry runs, lineage, or approval flow described in `import-source-onboarding-design-v1.md`
 
@@ -514,12 +514,14 @@ Examples:
 
 Use a database transaction for operations such as:
 
-- creating orders from carts
+- creating orders from carts, including inventory allocations, balance changes, transaction records, and projection refresh outbox rows (one `SaveChanges`)
 - inventory adjustment plus transaction record
 - accepting AI suggestions into live content
 - multi-record price updates
 
 Prefer application-service transaction boundaries over transaction logic inside controllers.
+
+Writes that change inventory reservations or stock (order placement, order status settlement, admin balance writes, location market assignment changes) run through `IInventoryWriteCoordinator` (Infrastructure). With PostgreSQL it reruns the whole operation, at most three times, when the unit of work raises `ConcurrentWriteException` (a stale row-version token on a balance, allocation, cart, or order; a duplicate source cart; a deadlock or serialization failure). With the in-memory provider it serializes those writes under a store-wide lock. Services in this path validate everything before their first mutation, because the in-memory provider cannot roll back.
 
 ## Mapping
 

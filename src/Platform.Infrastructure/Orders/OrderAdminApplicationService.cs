@@ -1,6 +1,7 @@
 using Platform.Application.Abstractions.Errors;
 using Platform.Application.Abstractions.Persistence;
 using Platform.Application.Cart;
+using Platform.Application.Catalog.Inventory;
 using Platform.Application.Catalog.Markets;
 using Platform.Application.Catalog.Products;
 using Platform.Application.Catalog.Variants;
@@ -12,6 +13,7 @@ using Platform.Application.Orders.Queries;
 using Platform.Contracts.Common;
 using Platform.Contracts.Orders;
 using Platform.Domain.Orders;
+using Platform.Infrastructure.Catalog.Inventory;
 using CartDomain = Platform.Domain.Cart;
 using CartAdminApplicationService = Platform.Infrastructure.Cart.CartAdminApplicationService;
 
@@ -25,6 +27,8 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
     private readonly ICustomerRepository _customerRepository;
     private readonly IMarketRepository _marketRepository;
     private readonly CartAdminApplicationService _cartPricingService;
+    private readonly IInventoryReservationService _inventoryReservationService;
+    private readonly IInventoryWriteCoordinator _inventoryWriteCoordinator;
     private readonly IUnitOfWork _unitOfWork;
 
     public OrderAdminApplicationService(
@@ -34,6 +38,8 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
         ICustomerRepository customerRepository,
         IMarketRepository marketRepository,
         CartAdminApplicationService cartPricingService,
+        IInventoryReservationService inventoryReservationService,
+        IInventoryWriteCoordinator inventoryWriteCoordinator,
         IUnitOfWork unitOfWork)
     {
         _orderRepository = orderRepository;
@@ -42,6 +48,8 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
         _customerRepository = customerRepository;
         _marketRepository = marketRepository;
         _cartPricingService = cartPricingService;
+        _inventoryReservationService = inventoryReservationService;
+        _inventoryWriteCoordinator = inventoryWriteCoordinator;
         _unitOfWork = unitOfWork;
     }
 
@@ -73,17 +81,25 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
             .ToList();
     }
 
-    public async Task<OrderDetailsDto> CreateAsync(CreateOrderCommand command, string requestedBy, CancellationToken cancellationToken)
+    public Task<OrderDetailsDto> CreateAsync(CreateOrderCommand command, string requestedBy, CancellationToken cancellationToken)
     {
-        if (command.CartId.HasValue)
-        {
-            return await CreateFromCartAsync(command, requestedBy, cancellationToken);
-        }
-
-        return await CreateManualAsync(command, requestedBy, cancellationToken);
+        // Placement reserves stock, so the whole operation (idempotency check included) runs under
+        // the inventory write coordinator: retried on a lost database race, serialized in memory.
+        return _inventoryWriteCoordinator.ExecuteAsync(
+            token => command.CartId.HasValue
+                ? CreateFromCartAsync(command, requestedBy, token)
+                : CreateManualAsync(command, requestedBy, token),
+            cancellationToken);
     }
 
-    public async Task<OrderStatusHistoryDto?> ChangeStatusAsync(ChangeOrderStatusCommand command, string changedBy, CancellationToken cancellationToken)
+    public Task<OrderStatusHistoryDto?> ChangeStatusAsync(ChangeOrderStatusCommand command, string changedBy, CancellationToken cancellationToken)
+    {
+        return _inventoryWriteCoordinator.ExecuteAsync(
+            token => ChangeStatusCoreAsync(command, changedBy, token),
+            cancellationToken);
+    }
+
+    private async Task<OrderStatusHistoryDto?> ChangeStatusCoreAsync(ChangeOrderStatusCommand command, string changedBy, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(command.OrderId, cancellationToken);
         if (order is null)
@@ -91,14 +107,29 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
             return null;
         }
 
-        OrderStatusHistory history;
+        string toStatus;
         try
         {
-            history = order.ChangeStatus(command.ToStatus, changedBy, command.Comment, command.RowVersion);
+            toStatus = order.ValidateStatusChange(command.ToStatus, command.RowVersion);
         }
         catch (InvalidOperationException exception)
         {
             throw new RequestValidationException(nameof(ChangeOrderStatusCommand.ToStatus), exception.Message);
+        }
+
+        // Validate the inventory settlement before the first mutation so a rejected completion
+        // (for example, stock no longer on hand) leaves the order and stock untouched.
+        InventorySettlementPlan? settlement = toStatus switch
+        {
+            "Cancelled" => await _inventoryReservationService.PlanSettlementAsync(order.Id, InventorySettlementType.Release, cancellationToken),
+            "Completed" => await _inventoryReservationService.PlanSettlementAsync(order.Id, InventorySettlementType.Ship, cancellationToken),
+            _ => null
+        };
+
+        var history = order.ChangeStatus(toStatus, changedBy, command.Comment, command.RowVersion);
+        if (settlement is not null)
+        {
+            await _inventoryReservationService.ApplySettlementAsync(settlement, cancellationToken);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -152,6 +183,15 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
         await EnsureCompanyMembershipCanPlaceOrdersAsync(cart.CustomerId, cart.CompanyId, cancellationToken);
 
         var updates = await _cartPricingService.ResolveCartPricingAsync(cart, cancellationToken);
+        var skuByLine = updates.ToDictionary(x => x.CartLineId, x => x.Sku);
+        var reservation = await _inventoryReservationService.PlanReservationAsync(
+            cart.MarketId,
+            cart.Lines.Select(x => new InventoryDemand(x.VariantId, skuByLine.GetValueOrDefault(x.Id, x.Sku), x.Quantity)).ToList(),
+            cancellationToken);
+        var orderNumber = await GenerateOrderNumberAsync(cancellationToken);
+
+        // First mutation: Reprice checks the cart row version before changing anything, and every
+        // later step was validated above, so a rejected checkout leaves no partial changes.
         cart.Reprice(updates, command.CartRowVersion);
 
         var orderId = Guid.NewGuid();
@@ -159,7 +199,7 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
         var order = new Order(
             orderId,
             cart.Id,
-            await GenerateOrderNumberAsync(cancellationToken),
+            orderNumber,
             cart.CustomerId,
             cart.CompanyId,
             cart.MarketId,
@@ -174,6 +214,7 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
 
         cart.Convert(cart.RowVersion);
         await _orderRepository.AddAsync(order, cancellationToken);
+        await _inventoryReservationService.ApplyReservationAsync(order.Id, reservation, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapDetails(order);
     }
@@ -220,6 +261,10 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
         var temporaryCart = BuildTemporaryCart(command);
         var priceUpdates = await _cartPricingService.ResolveCartPricingAsync(temporaryCart, cancellationToken);
         var updates = priceUpdates.ToDictionary(x => x.CartLineId);
+        var reservation = await _inventoryReservationService.PlanReservationAsync(
+            command.MarketId.Value,
+            temporaryCart.Lines.Select(x => new InventoryDemand(x.VariantId, updates[x.Id].Sku, x.Quantity)).ToList(),
+            cancellationToken);
         var orderId = Guid.NewGuid();
 
         var orderLines = temporaryCart.Lines.Select(line =>
@@ -245,6 +290,7 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
             "Manual order created.");
 
         await _orderRepository.AddAsync(order, cancellationToken);
+        await _inventoryReservationService.ApplyReservationAsync(order.Id, reservation, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return MapDetails(order);
     }
@@ -304,9 +350,10 @@ public sealed class OrderAdminApplicationService : IOrderAdminApplicationService
             DateTime.UtcNow,
             DateTime.UtcNow);
 
+        // Placeholder price and VAT only; ResolveCartPricingAsync supplies the real values before any order line is built.
         foreach (var line in command.Lines)
         {
-            cart.AddLine(line.VariantId, line.VariantId.ToString(), string.Empty, null, line.Quantity, 0m, 0.25m, line.Comment);
+            cart.AddLine(line.VariantId, line.VariantId.ToString(), string.Empty, null, line.Quantity, unitPrice: 0m, vatRate: 0m, line.Comment);
         }
 
         foreach (var address in command.Addresses)

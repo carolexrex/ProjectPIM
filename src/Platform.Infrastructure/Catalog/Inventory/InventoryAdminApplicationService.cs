@@ -19,6 +19,8 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
 
     private readonly IInventoryLocationRepository _inventoryLocationRepository;
     private readonly IInventoryBalanceRepository _inventoryBalanceRepository;
+    private readonly IInventoryAllocationRepository _inventoryAllocationRepository;
+    private readonly IInventoryWriteCoordinator _inventoryWriteCoordinator;
     private readonly IMarketRepository _marketRepository;
     private readonly IVariantRepository _variantRepository;
     private readonly IStorefrontProjectionRefreshRequestPublisher _storefrontProjectionRefreshRequestPublisher;
@@ -27,6 +29,8 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
     public InventoryAdminApplicationService(
         IInventoryLocationRepository inventoryLocationRepository,
         IInventoryBalanceRepository inventoryBalanceRepository,
+        IInventoryAllocationRepository inventoryAllocationRepository,
+        IInventoryWriteCoordinator inventoryWriteCoordinator,
         IMarketRepository marketRepository,
         IVariantRepository variantRepository,
         IStorefrontProjectionRefreshRequestPublisher storefrontProjectionRefreshRequestPublisher,
@@ -34,6 +38,8 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
     {
         _inventoryLocationRepository = inventoryLocationRepository;
         _inventoryBalanceRepository = inventoryBalanceRepository;
+        _inventoryAllocationRepository = inventoryAllocationRepository;
+        _inventoryWriteCoordinator = inventoryWriteCoordinator;
         _marketRepository = marketRepository;
         _variantRepository = variantRepository;
         _storefrontProjectionRefreshRequestPublisher = storefrontProjectionRefreshRequestPublisher;
@@ -96,7 +102,13 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         return await MapLocationDetailsAsync(location, cancellationToken);
     }
 
-    public async Task<InventoryLocationDetailsDto?> ArchiveLocationAsync(ArchiveInventoryLocationCommand command, CancellationToken cancellationToken)
+    public Task<InventoryLocationDetailsDto?> ArchiveLocationAsync(ArchiveInventoryLocationCommand command, CancellationToken cancellationToken)
+    {
+        // Location status and market assignments decide which balances checkout may reserve from.
+        return _inventoryWriteCoordinator.ExecuteAsync(token => ArchiveLocationCoreAsync(command, token), cancellationToken);
+    }
+
+    private async Task<InventoryLocationDetailsDto?> ArchiveLocationCoreAsync(ArchiveInventoryLocationCommand command, CancellationToken cancellationToken)
     {
         var location = await _inventoryLocationRepository.GetByIdAsync(command.InventoryLocationId, cancellationToken);
         if (location is null)
@@ -109,7 +121,12 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         return await MapLocationDetailsAsync(location, cancellationToken);
     }
 
-    public async Task<InventoryLocationDetailsDto?> UpsertLocationMarketAssignmentAsync(UpsertInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
+    public Task<InventoryLocationDetailsDto?> UpsertLocationMarketAssignmentAsync(UpsertInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
+    {
+        return _inventoryWriteCoordinator.ExecuteAsync(token => UpsertLocationMarketAssignmentCoreAsync(command, token), cancellationToken);
+    }
+
+    private async Task<InventoryLocationDetailsDto?> UpsertLocationMarketAssignmentCoreAsync(UpsertInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
     {
         var location = await _inventoryLocationRepository.GetByIdAsync(command.InventoryLocationId, cancellationToken);
         if (location is null)
@@ -131,7 +148,12 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         return await MapLocationDetailsAsync(location, cancellationToken);
     }
 
-    public async Task<InventoryLocationDetailsDto?> RemoveLocationMarketAssignmentAsync(RemoveInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
+    public Task<InventoryLocationDetailsDto?> RemoveLocationMarketAssignmentAsync(RemoveInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
+    {
+        return _inventoryWriteCoordinator.ExecuteAsync(token => RemoveLocationMarketAssignmentCoreAsync(command, token), cancellationToken);
+    }
+
+    private async Task<InventoryLocationDetailsDto?> RemoveLocationMarketAssignmentCoreAsync(RemoveInventoryLocationMarketAssignmentCommand command, CancellationToken cancellationToken)
     {
         var location = await _inventoryLocationRepository.GetByIdAsync(command.InventoryLocationId, cancellationToken);
         if (location is null)
@@ -165,7 +187,14 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
             cancellationToken);
     }
 
-    public async Task<InventoryBalanceDto> UpsertBalanceAsync(UpsertInventoryBalanceCommand command, CancellationToken cancellationToken)
+    public Task<InventoryBalanceDto> UpsertBalanceAsync(UpsertInventoryBalanceCommand command, CancellationToken cancellationToken)
+    {
+        // Balance writes compete with checkout reservations for the same row; the coordinator retries
+        // or serializes them so neither side loses the other's change.
+        return _inventoryWriteCoordinator.ExecuteAsync(token => UpsertBalanceCoreAsync(command, token), cancellationToken);
+    }
+
+    private async Task<InventoryBalanceDto> UpsertBalanceCoreAsync(UpsertInventoryBalanceCommand command, CancellationToken cancellationToken)
     {
         ValidateSnapshotQuantities(command.OnHandQuantity, command.ReservedQuantity, command.IncomingQuantity, command.Backorderable);
 
@@ -197,6 +226,17 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         }
         else
         {
+            // Order allocations own part of the reserved quantity. A snapshot may add holds on top
+            // (for example from an external system) but must never drop below what open orders hold,
+            // otherwise a later cancellation or shipment would release stock that is not reserved.
+            var outstanding = await _inventoryAllocationRepository.SumOutstandingByBalanceAsync(balance.Id, cancellationToken);
+            if (command.ReservedQuantity < outstanding)
+            {
+                throw new RequestValidationException(
+                    nameof(UpsertInventoryBalanceCommand.ReservedQuantity),
+                    $"Reserved quantity cannot be lower than the {outstanding} reserved by open orders.");
+            }
+
             balance.UpdateSnapshot(
                 command.OnHandQuantity,
                 command.ReservedQuantity,
@@ -213,7 +253,12 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
         return MapBalance(balance, variant.Sku);
     }
 
-    public async Task<InventoryTransactionDto> AdjustInventoryAsync(AdjustInventoryCommand command, CancellationToken cancellationToken)
+    public Task<InventoryTransactionDto> AdjustInventoryAsync(AdjustInventoryCommand command, CancellationToken cancellationToken)
+    {
+        return _inventoryWriteCoordinator.ExecuteAsync(token => AdjustInventoryCoreAsync(command, token), cancellationToken);
+    }
+
+    private async Task<InventoryTransactionDto> AdjustInventoryCoreAsync(AdjustInventoryCommand command, CancellationToken cancellationToken)
     {
         ValidateTransactionType(command.Type);
 
@@ -244,14 +289,15 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
             await _inventoryBalanceRepository.AddAsync(balance, cancellationToken);
         }
 
-        var referenceType = string.IsNullOrWhiteSpace(command.ReferenceType) ? "ManualAdjustment" : command.ReferenceType.Trim();
-        var referenceId = command.ReferenceId ?? Guid.NewGuid();
-        var transaction = balance.Adjust(command.Type, command.QuantityDelta, referenceType, referenceId, DateTime.UtcNow);
-
-        if (!balance.Backorderable && balance.OnHandQuantity < 0)
+        // Validate before mutating: the in-memory provider has no rollback.
+        if (!balance.Backorderable && balance.OnHandQuantity + command.QuantityDelta < 0)
         {
             throw new RequestValidationException(nameof(AdjustInventoryCommand.QuantityDelta), "Adjustment would make on-hand quantity negative for a non-backorderable balance.");
         }
+
+        var referenceType = string.IsNullOrWhiteSpace(command.ReferenceType) ? "ManualAdjustment" : command.ReferenceType.Trim();
+        var referenceId = command.ReferenceId ?? Guid.NewGuid();
+        var transaction = balance.Adjust(command.Type, command.QuantityDelta, referenceType, referenceId, DateTime.UtcNow);
 
         await _inventoryBalanceRepository.AddTransactionAsync(transaction, cancellationToken);
         await _storefrontProjectionRefreshRequestPublisher.EnqueueVariantRefreshAsync(
@@ -408,6 +454,7 @@ public sealed class InventoryAdminApplicationService : IInventoryAdminApplicatio
             transaction.QuantityDelta,
             transaction.ReferenceType,
             transaction.ReferenceId,
-            transaction.OccurredAtUtc);
+            transaction.OccurredAtUtc,
+            transaction.ReservedQuantityDelta);
     }
 }

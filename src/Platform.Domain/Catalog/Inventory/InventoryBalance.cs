@@ -78,6 +78,96 @@ public sealed class InventoryBalance
             occurredAtUtc);
     }
 
+    /// <summary>
+    /// Holds <paramref name="quantity"/> for an order. On-hand stock is unchanged. A non-backorderable
+    /// balance can never reserve beyond its available quantity; a backorderable balance may, which is
+    /// what makes available quantity negative.
+    /// </summary>
+    public InventoryTransaction Reserve(decimal quantity, Guid orderId, DateTime occurredAtUtc)
+    {
+        EnsurePositive(quantity);
+        if (!Backorderable && quantity > AvailableQuantity)
+        {
+            throw new InvalidOperationException(
+                $"Cannot reserve {quantity} from a non-backorderable balance with {AvailableQuantity} available.");
+        }
+
+        ReservedQuantity += quantity;
+        Touch();
+        return CreateTransaction(InventoryTransactionTypes.Reservation, 0m, quantity, orderId, occurredAtUtc);
+    }
+
+    /// <summary>
+    /// Returns a previously reserved quantity to available stock (order cancellation).
+    /// </summary>
+    public InventoryTransaction ReleaseReservation(decimal quantity, Guid orderId, DateTime occurredAtUtc)
+    {
+        EnsurePositive(quantity);
+        if (quantity > ReservedQuantity)
+        {
+            throw new InvalidOperationException(
+                $"Cannot release {quantity}; only {ReservedQuantity} is reserved on the balance.");
+        }
+
+        ReservedQuantity -= quantity;
+        Touch();
+        return CreateTransaction(InventoryTransactionTypes.ReservationRelease, 0m, -quantity, orderId, occurredAtUtc);
+    }
+
+    /// <summary>
+    /// True when a reserved quantity can be shipped: it is still reserved and physically on hand.
+    /// </summary>
+    public bool CanShipReservation(decimal quantity)
+    {
+        return quantity > 0m && quantity <= ReservedQuantity && quantity <= OnHandQuantity;
+    }
+
+    /// <summary>
+    /// Consumes a reservation when the order is fulfilled: on-hand and reserved stock both decrease,
+    /// so available quantity is unchanged. Requires the stock to be physically on hand.
+    /// </summary>
+    public InventoryTransaction ShipReservation(decimal quantity, Guid orderId, DateTime occurredAtUtc)
+    {
+        EnsurePositive(quantity);
+        if (!CanShipReservation(quantity))
+        {
+            throw new InvalidOperationException(
+                $"Cannot ship {quantity}; the balance has {OnHandQuantity} on hand and {ReservedQuantity} reserved.");
+        }
+
+        OnHandQuantity -= quantity;
+        ReservedQuantity -= quantity;
+        Touch();
+        return CreateTransaction(InventoryTransactionTypes.Shipment, -quantity, -quantity, orderId, occurredAtUtc);
+    }
+
+    private InventoryTransaction CreateTransaction(
+        string type,
+        decimal onHandDelta,
+        decimal reservedDelta,
+        Guid orderId,
+        DateTime occurredAtUtc)
+    {
+        return new InventoryTransaction(
+            Guid.NewGuid(),
+            InventoryLocationId,
+            VariantId,
+            type,
+            onHandDelta,
+            InventoryTransactionTypes.OrderReference,
+            orderId,
+            occurredAtUtc,
+            reservedDelta);
+    }
+
+    private static void EnsurePositive(decimal quantity)
+    {
+        if (quantity <= 0m)
+        {
+            throw new InvalidOperationException("Inventory quantity must be positive.");
+        }
+    }
+
     private void EnsureRowVersion(string? rowVersion)
     {
         if (string.IsNullOrWhiteSpace(rowVersion))

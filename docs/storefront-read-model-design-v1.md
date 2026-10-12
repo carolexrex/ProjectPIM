@@ -31,7 +31,8 @@ Current code status:
 Known implementation gaps:
 
 - storefront cart buyability validation currently scans/deserializes the context projection set; add variant-targeted lookup before real catalog volume
-- tax-category/market tax rates and company/customer-specific pricing are not part of the current projection/cart path
+- company/customer-specific pricing is not part of the current projection/cart path
+- the projection carries the list amount and `VatIncluded` flag only; VAT rates are resolved by cart pricing from market/tax-category VAT rules, so VAT rule changes need no projection refresh and projection buyability does not reflect missing VAT configuration
 
 That means this document is now both:
 
@@ -571,6 +572,8 @@ Current implementation status:
 
 - partially implemented
 - direct product, variant, brand, category subtree, market product assignment, inventory-location market assignment, price-list entry, and inventory-balance mutations now enqueue internal storefront projection refresh requests
+- order inventory reservation (reason `OrderInventoryReserved`) and cancellation release (`OrderInventoryReleased`) enqueue variant-targeted refresh requests in the same commit as the stock change; order completion ships reserved stock without changing available quantity and enqueues none
+- projected availability is advisory for storefront browse and cart creation only; order placement checks and reserves live balances, so a lagging projection can neither oversell nor block a checkout
 - storefront refresh requests are processed as internal outbox messages with event-type-specific polling, separate from external webhook fanout
 - storefront product reads do not rebuild projections on read misses; rebuilds and incremental refreshes are worker/admin responsibilities
 - `Platform.Worker` processes refresh requests before publishing outbox messages, resolving affected variants back to product projection rows
@@ -642,7 +645,7 @@ This design does not yet include:
 - checkout
 - customer-specific pricing
 - customer-specific availability
-- tax-category/market tax calculation
+- tax-category/market tax calculation (VAT is applied by cart pricing, not by the projection)
 - recommendation ranking
 - CMS page composition
 - external search engine adoption

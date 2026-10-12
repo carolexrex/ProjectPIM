@@ -85,6 +85,7 @@ public sealed class StorefrontCartsController : ControllerBase
     [ProducesResponseType(typeof(StorefrontOrderDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<StorefrontOrderDto>> CheckoutAsync(
         Guid id,
         [FromBody] CheckoutStorefrontCartRequest request,
@@ -102,6 +103,12 @@ public sealed class StorefrontCartsController : ControllerBase
             StorefrontContextResolutionStatus.Unauthorized => UnauthorizedProblem(),
             StorefrontContextResolutionStatus.NotFound => NotFoundProblem(result.ResourceName, result.ResourceKey),
             StorefrontContextResolutionStatus.ValidationFailed => BadRequest(new HttpValidationProblemDetails(result.Errors)),
+            StorefrontContextResolutionStatus.Conflict => Conflict(new HttpValidationProblemDetails(result.Errors)
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "The checkout conflicted with a concurrent change. Retry the request.",
+                Type = "https://httpstatuses.com/409"
+            }),
             _ => Problem(
                 statusCode: StatusCodes.Status500InternalServerError,
                 title: "Unexpected storefront checkout result.")

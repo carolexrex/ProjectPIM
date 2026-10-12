@@ -295,11 +295,13 @@ Responsible for:
 - price entries
 - price resolution rules
 - VAT inclusion behavior
+- VAT rate resolution per market and tax category
 
 Core entities:
 
 - `PriceList`
 - `PriceListEntry`
+- `VatRule`
 
 ## 7. Inventory
 
@@ -314,7 +316,8 @@ Core entities:
 
 - `InventoryLocation`
 - `InventoryBalance`
-- `InventoryReservation`
+- `InventoryAllocation` (implemented order-placement reservation; see `InventoryReservation` for future holds)
+- `InventoryReservation` (target design for expiring cart/payment holds)
 - `InventoryTransaction`
 
 ## 8. Cart
@@ -768,6 +771,12 @@ Rules:
 2. A market controls culture, currency, price list, and inventory availability context.
 3. A market is not the same as a website; one market may be exposed in multiple channels.
 
+`VatMode` semantics (current implementation):
+
+- allowed values are `Gross` and `Net`; the value is stored, validated, and exposed through the storefront context
+- it is a presentation hint for storefront consumers (show prices including or excluding VAT); it does not select VAT rates and does not change cart or order arithmetic
+- how a price amount is interpreted is decided only by `PriceList.VatIncluded`; which rate applies is decided only by `VatRule`
+
 ## MarketCurrency
 
 Required fields:
@@ -833,7 +842,7 @@ Current implementation note:
 
 - Price lists, market assignments, priorities, base-list flags, quantity breaks, list validity windows, and entry validity windows exist.
 - Company-specific price-list targeting is not implemented in the current domain/API surface.
-- Tax category rates are not implemented; cart repricing currently uses a fixed VAT rate and should be replaced before payment initiation.
+- VAT rates come from `VatRule` (market + product tax category). See `VatRule` below for how `VatIncluded` amounts are converted.
 
 ## PriceListEntry
 
@@ -865,6 +874,48 @@ Rules:
 1. Price resolution must return at most one effective unit price for a cart line.
 2. Resolution should prefer more specific assignments over less specific ones.
 3. Invalid or expired prices must never resolve.
+
+## VatRule
+
+Configured VAT rate for one market and one product tax category.
+
+Required fields:
+
+- `Id`
+- `MarketId`
+- `TaxCategoryCode`
+- `Rate` (fraction: `0.25` is 25%)
+- `Description` nullable
+- `CreatedAtUtc`
+- `UpdatedAtUtc`
+- `RowVersion`
+
+Rules:
+
+1. At most one rule exists per tenant, market, and tax category code. `TaxCategoryCode` is stored trimmed and upper-cased and matched case-insensitively against `Product.TaxCategoryCode` (the current product model stores a code rather than a `TaxCategoryId`).
+2. `Rate` is in `[0, 1)` with at most four decimals. Zero is a valid rate, but only when configured explicitly; it is never inferred.
+3. Cart pricing resolves each line's rate from the cart market and the line product's tax category. A missing rule fails pricing for the whole cart with a `TaxCategoryCode` validation error naming the category, market, and SKUs; no default rate is assumed.
+4. Rules are mutable with row-version concurrency and can be deleted. A change applies to carts on their next pricing pass (creation, reprice, checkout, manual order). Placed orders keep their `OrderLine.VatRate` snapshot and totals.
+
+Price and VAT arithmetic (unchanged rounding conventions):
+
+- `PriceList.VatIncluded = true`: the entry `Amount` is gross; net unit price = `round(Amount / (1 + Rate), 2, midpoint away from zero)`.
+- `PriceList.VatIncluded = false`: the entry `Amount` is the net unit price.
+- line total = `round(net unit price * quantity, 2)`; VAT total = `round(sum(line total * line rate), 2)`; grand total = subtotal + VAT total.
+- Because the net unit price is rounded before quantity is applied, the cart gross total can differ from `Amount * quantity` by rounding cents for some amounts and fractional quantities.
+- Price-list priority, entry validity windows, and quantity-break selection are independent of VAT; the rate only affects the gross-to-net conversion and the VAT total.
+
+Storefront price metadata:
+
+- Storefront product projections expose the selected list `Amount` plus `vatIncluded` from its price list. They do not apply VAT rules, so there is one pricing calculation (cart pricing) rather than a second projection-side tax computation; the cart response is authoritative for net, VAT, and gross totals.
+
+Future work (out of scope for the current slice):
+
+- destination-based taxation (ship-to country/region rates, EU OSS distance selling)
+- exemptions (customer/company exempt status and certificates)
+- B2B reverse charge (validated VAT number, zero-rated lines with reverse-charge wording)
+- effective-dated rate schedules (rule changes are immediate today)
+- VAT on shipping, fees, and discounts, and alternative rounding modes (per-line VAT rounding, gross-total rounding)
 
 ## InventoryLocation
 
@@ -903,6 +954,40 @@ Rules:
 
 1. Available quantity may be negative only if backorder logic permits it.
 2. Balances are the source of truth for stock snapshots.
+3. `ReservedQuantity` = outstanding order allocations on the balance + holds recorded outside the order ledger (for example an ERP snapshot). An admin snapshot may set it to any value at or above the outstanding allocations, never below.
+4. Order settlement changes `ReservedQuantity` only by the exact allocated quantity, so external holds are never released by an order.
+5. `OnHandQuantity` changes through admin snapshots/adjustments and order shipment only. Order placement and cancellation never change it.
+6. A non-backorderable balance never reserves beyond its available quantity. Admin stock counts may still lower on-hand below reserved (physical shrinkage); completion of the affected orders is then refused until stock is restored or the orders are cancelled.
+
+## InventoryAllocation
+
+Stock held for one placed order on one inventory balance. Implemented (migration `AddOrderInventoryAllocations`).
+
+Fields:
+
+- `Id`
+- `OrderId`
+- `InventoryBalanceId`
+- `InventoryLocationId`
+- `VariantId`
+- `Quantity` (numeric(18,4), > 0)
+- `BackorderedQuantity` (portion of `Quantity` that exceeded available stock at placement; 0..`Quantity`)
+- `Status`: `Reserved` → `Released` (order cancelled) or `Shipped` (order completed)
+- `CreatedAtUtc`, `UpdatedAtUtc`, `RowVersion`
+
+Lifecycle:
+
+1. Placement (storefront checkout, admin cart conversion, admin manual order; all through `OrderAdminApplicationService`): demand is summed per variant across order lines, including duplicate and fractional lines (at most 4 decimal places). Each variant is allocated by `InventoryAllocationPolicy` against balances at **active** locations assigned to the order market, in order of location market priority (lowest first), then location code, then balance id. Available stock (never below zero per balance) is taken in that order. A remainder is placed on the first backorderable balance in that order and recorded as `BackorderedQuantity`; with no backorderable balance the whole order is rejected with `VariantId.{variantId}` validation errors naming the SKU, market, requested, and available quantities. One allocation per order and balance. `ReservedQuantity` increases; `OnHandQuantity` is unchanged.
+2. Cancellation (`Placed` or `Processing` → `Cancelled`): every `Reserved` allocation is released exactly once (`ReservedQuantity` decreases by the allocation).
+3. Completion (`Processing` → `Completed`): every `Reserved` allocation is shipped exactly once (`OnHandQuantity` and `ReservedQuantity` both decrease, so available stock is unchanged). Completion is rejected, with nothing changed, when any allocated balance does not physically hold the quantity (`OnHandQuantity` below the allocation), including backordered stock that has not arrived.
+4. Orders placed before allocations existed have none; cancelling or completing them changes no stock.
+5. Carts never reserve. Projected storefront availability is an early hint at cart creation only; placement checks live balances.
+
+Atomicity and concurrency:
+
+- The order, cart conversion, allocations, balance changes, inventory transactions, and projection refresh outbox rows are staged first and committed by one `SaveChanges`; every rejection is raised before the first mutation, so a failure commits nothing.
+- PostgreSQL: balances, allocations, carts, and orders have row-version concurrency tokens, and `Order.SourceCartId` is unique. A conflicting save (stale token, duplicate source cart, deadlock, or serialization failure) rolls back and raises `ConcurrentWriteException`; the inventory write coordinator discards tracked state and reruns the whole operation up to three times. A rerun re-plans from current stock, so a lost last-unit race becomes a stock validation error and a lost duplicate checkout returns the winning order. If retries are exhausted the API returns 409.
+- In-memory provider: placement, settlement, and admin stock writes run one at a time under a store-wide lock.
 
 ## InventoryReservation
 
@@ -926,8 +1011,7 @@ Rules:
 
 Current implementation note:
 
-- Reservations are target design only. The current code has inventory locations, balances, transactions, and admin adjustments, but no reservation aggregate/table/runtime flow.
-- Order placement does not yet write allocation/deduction inventory transactions.
+- Expiring cart/payment holds are still target design. Order placement reserves directly through `InventoryAllocation`; when payment authorization introduces a hold window, holds should convert into those allocations instead of adding a second ledger.
 
 ## InventoryTransaction
 
@@ -941,15 +1025,18 @@ Required fields:
 - `ReferenceType`
 - `ReferenceId`
 - `OccurredAtUtc`
+- `ReservedQuantityDelta` (defaults to 0)
 
-Examples of `Type`:
+`QuantityDelta` is always the change to on-hand stock and `ReservedQuantityDelta` the change to reserved stock.
 
-- `Adjustment`
-- `Reservation`
-- `ReservationRelease`
-- `OrderAllocation`
-- `Shipment`
-- `Return`
+Implemented types:
+
+- `Adjustment`: admin adjustment; on-hand delta only
+- `Reservation`: order placement; reserved +quantity, reference `Order`/order id
+- `ReservationRelease`: order cancellation; reserved −quantity
+- `Shipment`: order completion; on-hand −quantity and reserved −quantity
+
+Future types: `Return`, transfers.
 
 ## Cart
 
@@ -1047,6 +1134,7 @@ Rules:
 1. Order data is an immutable business snapshot except for state transitions and operational references.
 2. An order is created from a validated cart.
 3. Totals on the order must not rely on current catalog prices after placement.
+4. Status transitions: `Placed` → `Processing` | `Cancelled`; `Processing` → `Completed` | `Cancelled`; `Completed` and `Cancelled` are terminal. Cancelling releases and completing ships the order's inventory allocations (see `InventoryAllocation`).
 
 ## OrderLine
 
@@ -1214,15 +1302,16 @@ Minimum v1 resolution order:
 Rules:
 
 1. Resolve only active and valid entries.
-2. Respect currency and VAT mode.
+2. Respect currency and the price list's VAT inclusion (`VatIncluded`); `Market.VatMode` is display metadata only.
 3. Choose the highest applicable quantity break not exceeding requested quantity.
 4. Return a single effective unit price.
 
 Current implementation note:
 
-- Current cart repricing resolves active market price lists by priority and filters entry validity windows.
-- Current storefront projection price resolution must be kept in sync with cart repricing; it still needs entry-window filtering and a scheduled refresh mechanism for price windows that open or close without a write event.
-- Company/customer-specific pricing and tax-category/market tax rates are not implemented.
+- Cart repricing resolves active market price lists by priority and honours both price-list and price-list-entry validity windows.
+- Storefront projection price resolution uses the same rules: one UTC instant per build, inclusive price-list and entry validity windows, and a worker price-validity scan that enqueues targeted refreshes when a window opens or closes without a write event.
+- VAT rates resolve from `VatRule` by market and product tax category; a missing rule is a validation error.
+- Company/customer-specific pricing is not implemented.
 
 ## Inventory Resolution Rules
 
@@ -1234,16 +1323,17 @@ Minimum v1 resolution inputs:
 
 Rules:
 
-1. Consider only inventory locations assigned to the market.
-2. Sum available stock across eligible locations unless future business rules require priority/allocation logic.
-3. If insufficient available stock and no backorder rule exists, checkout must block.
+1. Consider only active inventory locations assigned to the market.
+2. Projected availability sums available stock (floored at zero per balance) across eligible locations; allocation takes it in location market priority order.
+3. If insufficient available stock and no backorderable balance exists, order placement must block.
 4. Optional reservation is created during checkout start or payment initiation.
 
 Current implementation note:
 
-- Storefront reads and cart validation use projected availability from inventory balances.
-- Checkout validates buyability/availability before creating an order, but it does not reserve, allocate, or decrement stock.
-- The next production-readiness step is an order-placement inventory transaction, with expiring reservations added when payment authorization introduces a hold window.
+- Storefront reads and storefront cart creation use projected availability from inventory balances.
+- Checkout and every other order placement reserve against live balances through `InventoryAllocation`; projected stock reasons (`OutOfStock`, `Unavailable`) and projected quantities are not used at checkout because the projection can lag.
+- Reservation and release enqueue targeted variant projection refreshes; shipment does not change available stock and enqueues none.
+- Expiring reservations are added when payment authorization introduces a hold window.
 
 ## Culture and Translation Rules
 
@@ -1288,8 +1378,10 @@ Rules:
 Current implementation note:
 
 - Storefront checkout can convert a cart to an order idempotently with signed cart access-token ownership proof.
+- Checkout reprices the cart through the shared pricing path, so the order snapshot captures the VAT rule rates in force at placement; later rule changes do not alter placed orders.
 - Payment initiation/callback handling is not implemented.
-- Inventory reservation/allocation is not implemented, so payment work should not assume stock has been held.
+- Placing the order reserves inventory in the same commit (step 11 happens at placement as allocations). A repeated checkout of a converted cart returns the original order without re-checking stock or reserving again, also under concurrent repeats.
+- Payment work that authorizes before placement must add expiring holds rather than assume stock is held earlier.
 
 ## Permission Model
 

@@ -10,6 +10,7 @@ using Platform.Domain.Catalog.Markets;
 using Platform.Domain.Catalog.Media;
 using Platform.Domain.Catalog.Pricing;
 using Platform.Domain.Catalog.Products;
+using Platform.Domain.Catalog.Tax;
 using Platform.Domain.Catalog.Variants;
 using Platform.Domain.Companies;
 using Platform.Domain.Customers;
@@ -37,6 +38,14 @@ public sealed class InMemoryCatalogStore
     public ConcurrentDictionary<Guid, InventoryBalance> InventoryBalances { get; } = new();
     public ConcurrentDictionary<Guid, InventoryLocation> InventoryLocations { get; } = new();
     public ConcurrentDictionary<Guid, InventoryTransaction> InventoryTransactions { get; } = new();
+    public ConcurrentDictionary<Guid, InventoryAllocation> InventoryAllocations { get; } = new();
+
+    /// <summary>
+    /// Serializes order placement, order settlement, and admin inventory writes. The in-memory
+    /// provider has no transactions or concurrency tokens, so this lock is what keeps concurrent
+    /// checkouts from reserving the same stock or duplicating an order for one cart.
+    /// </summary>
+    public SemaphoreSlim InventoryWriteLock { get; } = new(1, 1);
     public ConcurrentDictionary<Guid, Market> Markets { get; } = new();
     public ConcurrentDictionary<Guid, Customer> Customers { get; } = new();
     public ConcurrentDictionary<Guid, Company> Companies { get; } = new();
@@ -46,6 +55,7 @@ public sealed class InMemoryCatalogStore
     public ConcurrentDictionary<Guid, MediaAsset> MediaAssets { get; } = new();
     public ConcurrentDictionary<Guid, Order> Orders { get; } = new();
     public ConcurrentDictionary<Guid, PriceList> PriceLists { get; } = new();
+    public ConcurrentDictionary<Guid, VatRule> VatRules { get; } = new();
     public ConcurrentDictionary<Guid, ProductAttribute> ProductAttributes { get; } = new();
     public ConcurrentDictionary<Guid, StorefrontProductProjection> StorefrontProductProjections { get; } = new();
     public ConcurrentDictionary<Guid, WebhookSubscription> WebhookSubscriptions { get; } = new();
@@ -320,6 +330,17 @@ public sealed class InMemoryCatalogStore
         seBasePriceList.UpsertMarketAssignment(seMarket.Id, 0, true, seBasePriceList.RowVersion);
         seBasePriceList.UpsertEntry(null, "Variant", variant.Id, 1, 1499m, 1699m, null, null, seBasePriceList.RowVersion);
         PriceLists[seBasePriceList.Id] = seBasePriceList;
+
+        // Cart pricing never assumes a VAT rate; the seeded STANDARD category must be configured explicitly.
+        var seStandardVatRule = new VatRule(
+            Guid.Parse("64100000-0000-0000-0000-000000000001"),
+            seMarket.Id,
+            "STANDARD",
+            0.25m,
+            "Sweden standard rate",
+            now.AddMinutes(-20),
+            now.AddMinutes(-9));
+        VatRules[seStandardVatRule.Id] = seStandardVatRule;
 
         var mainLocation = new InventoryLocation(
             Guid.Parse("65000000-0000-0000-0000-000000000001"),

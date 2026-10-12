@@ -38,7 +38,7 @@ dotnet tool restore
 
 Flags: `--skip-db` (Postgres already running), `--skip-migrate`. Stop with `scripts/stop-dev.sh` (`--keep-db` leaves the Postgres container running). Seed dev/admin users are defined in `src/Platform.Api/appsettings.Development.json` (e.g. `test` / `Test123!`).
 
-To seed smoke catalog data and run the storefront cart/checkout gate (macOS/Linux): `scripts/seed-storefront-smoke.sh` (bash port of `seed-storefront-smoke.ps1`; requires `curl` + `jq`). It seeds the `WEB-SE`/`SE`/`example-drill` dataset, requests a projection rebuild, and exercises the 8-step cart/checkout gate from `docs/pim-roadmap-v1.md`.
+To seed smoke catalog data and run the storefront cart/checkout gate (macOS/Linux): `scripts/seed-storefront-smoke.sh` (bash port of `seed-storefront-smoke.ps1`; requires `curl` + `jq`). It seeds the `WEB-SE`/`SE`/`example-drill` dataset, requests a projection rebuild, and exercises the 10-step cart/checkout gate (VAT, reservation, idempotency, ownership, oversell guard, cancellation release) from `docs/pim-roadmap-v1.md`.
 
 ### EF Core migrations
 

@@ -6,6 +6,9 @@ namespace Platform.Infrastructure.Persistence.Configurations.Order;
 
 public sealed class OrderConfiguration : IEntityTypeConfiguration<OrderEntity>
 {
+    public const string SourceCartIndexName = "IX_Order_SourceCartId";
+    public const string OrderNumberIndexName = "IX_Order_OrderNumber";
+
     public void Configure(EntityTypeBuilder<OrderEntity> builder)
     {
         builder.ToTable("Order", "public");
@@ -28,8 +31,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<OrderEntity>
         builder.Property<Guid?>("TenantId");
         builder.Property<bool>("IsDeleted").HasDefaultValue(false);
 
-        builder.HasIndex(x => x.OrderNumber).IsUnique();
-        builder.HasIndex(x => x.SourceCartId).IsUnique();
+        builder.HasIndex(x => x.OrderNumber).IsUnique().HasDatabaseName(OrderNumberIndexName);
+        builder.HasIndex(x => x.SourceCartId).IsUnique().HasDatabaseName(SourceCartIndexName);
         builder.HasIndex(x => x.CustomerId);
         builder.HasIndex(x => x.CompanyId);
         builder.HasIndex(x => x.MarketId);

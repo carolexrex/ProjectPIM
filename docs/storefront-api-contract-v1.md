@@ -353,6 +353,8 @@ Example request:
 
 Cart line variants must be visible and buyable in the resolved storefront context. The cart service validates against `StorefrontProductProjection`, including variant buyability and available quantity unless the variant is backorderable.
 
+Cart pricing resolves each line's VAT rate from the admin-configured VAT rule for the cart market and product tax category. Product `price` metadata is the list amount with `vatIncluded`; the cart response is authoritative for net `subtotal`, `vatTotal`, and gross `grandTotal`. Missing VAT configuration returns `400` with `errors.TaxCategoryCode`.
+
 Cart responses include:
 
 - `id`
@@ -396,5 +398,17 @@ X-Storefront-Cart-Token: {cartAccessToken}
 }
 ```
 
-Checkout requires a cart email plus at least one `Billing` address and one `Shipping` address. It validates the cart lines against the current storefront projection before conversion, then returns the placed order snapshot. Payment initiation and payment callbacks are still separate future work.
+Checkout requires a cart email plus at least one `Billing` address and one `Shipping` address. It validates line visibility, status, and price against the current storefront projection, then places the order and reserves its stock against live inventory balances in one commit, and returns the placed order snapshot. Projected stock is not consulted at checkout because the projection can lag behind reservations and releases. Payment initiation and payment callbacks are still separate future work.
+
+Checkout responses:
+
+| Status | When | Body |
+| --- | --- | --- |
+| `200` | order placed, or the cart was already converted (the original order is returned, without reserving again) | `StorefrontOrderDto` |
+| `400` | validation failed: missing email/addresses, a line not visible/buyable, a missing VAT rule (`errors.TaxCategoryCode`), stale `rowVersion` (`errors.RowVersion`), or insufficient stock (`errors["VariantId.{variantId}"]`, e.g. `Insufficient stock for SKU-1 in market 'SE': requested 3, available 1.`) | validation problem details |
+| `401` | missing or invalid `X-Storefront-Cart-Token` | problem details |
+| `404` | unknown cart | problem details |
+| `409` | a concurrent checkout or stock write won a race that the in-request retry could not resolve; nothing was committed, retry with the same `rowVersion` | validation problem details with `errors.Checkout` |
+
+Stock is held from order placement until the order is cancelled (released) or completed (shipped). Carts never hold stock. A backorderable balance accepts quantities beyond its available stock.
 

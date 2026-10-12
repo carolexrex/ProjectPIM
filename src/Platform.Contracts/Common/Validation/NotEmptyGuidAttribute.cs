@@ -12,6 +12,7 @@ public sealed class NotEmptyGuidAttribute : ValidationAttribute
 
     public override bool IsValid(object? value)
     {
-        return value is Guid guid && guid != Guid.Empty;
+        // Null means "not supplied" for optional Guid? fields; pair with [Required] to demand a value.
+        return value is null || value is Guid guid && guid != Guid.Empty;
     }
 }

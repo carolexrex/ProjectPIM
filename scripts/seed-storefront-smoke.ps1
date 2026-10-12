@@ -503,6 +503,34 @@ function Ensure-MarketProductAssignment {
     }
 }
 
+function Ensure-VatRule {
+    param($Market)
+
+    # Cart pricing never assumes a VAT rate; the smoke product uses tax category STANDARD.
+    $existing = @((Invoke-JsonRequest -Method GET -Url (Get-QueryUrl -Path "/api/admin/vat-rules" -Query @{ marketId = $Market.id; taxCategoryCode = "STANDARD" }) -Headers $script:AuthHeaders).items) | Select-Object -First 1
+    if ($null -eq $existing) {
+        Write-Step "Creating VAT rule SE/STANDARD (25%)"
+        return Invoke-Admin -Method POST -Path "/api/admin/vat-rules" -Body @{
+            marketId = $Market.id
+            taxCategoryCode = "STANDARD"
+            rate = 0.25
+            description = "Sweden standard rate"
+        }
+    }
+
+    if ([decimal]$existing.rate -ne [decimal]0.25) {
+        Write-Step "Resetting VAT rule SE/STANDARD from $($existing.rate) to 25%"
+        return Invoke-Admin -Method PUT -Path "/api/admin/vat-rules/$($existing.id)" -Body @{
+            rate = 0.25
+            description = "Sweden standard rate"
+            rowVersion = $existing.rowVersion
+        }
+    }
+
+    Write-Step "Using existing VAT rule SE/STANDARD (25%)"
+    return $existing
+}
+
 function Ensure-PriceList {
     param($Market, $Variant)
 
@@ -576,12 +604,19 @@ function Ensure-Inventory {
     }
 
     $balance = @($location.balances) | Where-Object { "$($_.variantId)" -eq "$($Variant.id)" } | Select-Object -First 1
-    Write-Step "Upserting variant inventory balance"
+    # 2 units model an external hold. Open orders own the rest of the reserved quantity and a snapshot
+    # may not drop below them, so keep any higher value already on the balance.
+    $seedReserved = 2
+    if ($null -ne $balance -and [decimal]$balance.reservedQuantity -gt $seedReserved) {
+        $seedReserved = [decimal]$balance.reservedQuantity
+    }
+
+    Write-Step "Upserting variant inventory balance (onHand=25, reserved=$seedReserved)"
     Invoke-Admin -Method PUT -Path "/api/admin/inventory-balances" -Body @{
         inventoryLocationId = $location.id
         variantId = $Variant.id
         onHandQuantity = 25
-        reservedQuantity = 2
+        reservedQuantity = $seedReserved
         incomingQuantity = 10
         backorderable = $false
         rowVersion = if ($null -eq $balance) { $null } else { $balance.rowVersion }
@@ -655,6 +690,7 @@ $readyProductStatus = Get-RequiredStatus -EntityType "Product" -Code "READY"
 $readyVariantStatus = Get-RequiredStatus -EntityType "Variant" -Code "READY"
 
 $market = Ensure-Market
+$vatRule = Ensure-VatRule -Market $market
 $channel = Ensure-Channel -Market $market
 $mediaAsset = Ensure-MediaAsset
 $brand = Ensure-Brand -MediaAsset $mediaAsset

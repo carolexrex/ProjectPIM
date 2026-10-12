@@ -6,6 +6,7 @@ using Platform.Infrastructure.Cart;
 using Platform.Infrastructure.Catalog;
 using Platform.Infrastructure.Catalog.Markets;
 using Platform.Infrastructure.Catalog.Products;
+using Platform.Infrastructure.Catalog.Tax;
 using Platform.Infrastructure.Catalog.Pricing;
 using Platform.Infrastructure.Catalog.Variants;
 using Platform.Infrastructure.Companies;
@@ -28,6 +29,8 @@ public sealed class CartOrderAdminApplicationServiceTests
             new InMemoryPriceListRepository(store),
             new InMemoryVariantRepository(store),
             new InMemoryProductRepository(store),
+            new InMemoryVatRuleRepository(store),
+            new InMemoryMarketRepository(store),
             new InMemoryUnitOfWork());
         var orderService = new OrderAdminApplicationService(
             orderRepository,
@@ -36,6 +39,8 @@ public sealed class CartOrderAdminApplicationServiceTests
             new InMemoryCustomerRepository(store),
             new InMemoryMarketRepository(store),
             cartService,
+            InventoryTestServices.CreateReservationService(store),
+            InventoryTestServices.CreateCoordinator(store),
             new InMemoryUnitOfWork());
 
         var cart = store.Carts[Guid.Parse("78000000-0000-0000-0000-000000000001")];
@@ -76,7 +81,11 @@ public sealed class CartOrderAdminApplicationServiceTests
                 new InMemoryPriceListRepository(store),
                 new InMemoryVariantRepository(store),
                 new InMemoryProductRepository(store),
+                new InMemoryVatRuleRepository(store),
+                new InMemoryMarketRepository(store),
                 new InMemoryUnitOfWork()),
+            InventoryTestServices.CreateReservationService(store),
+            InventoryTestServices.CreateCoordinator(store),
             new InMemoryUnitOfWork());
 
         var created = await orderService.CreateAsync(
@@ -131,7 +140,11 @@ public sealed class CartOrderAdminApplicationServiceTests
                 new InMemoryPriceListRepository(store),
                 new InMemoryVariantRepository(store),
                 new InMemoryProductRepository(store),
+                new InMemoryVatRuleRepository(store),
+                new InMemoryMarketRepository(store),
                 new InMemoryUnitOfWork()),
+            InventoryTestServices.CreateReservationService(store),
+            InventoryTestServices.CreateCoordinator(store),
             new InMemoryUnitOfWork());
 
         var customer = await customerService.CreateAsync(

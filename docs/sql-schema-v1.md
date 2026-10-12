@@ -8,9 +8,9 @@ The active implementation plan is documented in [pim-roadmap-v1.md](./pim-roadma
 
 Examples of target-vs-current drift to watch:
 
-- `InventoryReservation` is documented here as target design, but reservations are not implemented in the current runtime.
+- `InventoryReservation` (expiring cart/payment holds) is target design only. Order-placement stock reservation is implemented as `InventoryAllocation` (EF migration `AddOrderInventoryAllocations`), and `InventoryTransaction` gained `ReservedQuantityDelta`.
 - product status definition visibility/search/default/sort columns exist as EF shadow properties, but the current domain/API status surface only exposes buyability.
-- company-specific price lists and tax-category rate tables are target concepts, not current pricing behavior.
+- company-specific price lists are a target concept, not current pricing behavior. Market/tax-category VAT rates are implemented as `VatRule` (EF migration `AddVatRules`); destination-based tax tables are not.
 
 ## Purpose
 
@@ -588,6 +588,25 @@ Constraints:
 
 - unique: `(TenantId, Code)`
 
+## VatRule
+
+Columns (EF/PostgreSQL runtime shape):
+
+- `Id uuid pk`
+- `TenantId uuid null`
+- `MarketId uuid not null fk -> Market.Id (restrict)`
+- `TaxCategoryCode varchar(64) not null` (trimmed, upper-cased)
+- `Rate numeric(9,4) not null` (fraction; `0.25` = 25%)
+- `Description varchar(256) null`
+- `CreatedAtUtc timestamptz not null`
+- `UpdatedAtUtc timestamptz not null`
+- `RowVersion varchar(64) not null` (concurrency token)
+
+Constraints:
+
+- unique `UX_VatRule_TenantId_MarketId_TaxCategoryCode`: `(TenantId, MarketId, TaxCategoryCode)` with `NULLS NOT DISTINCT`, so single-tenant rows with `TenantId` null are still unique
+- check `CK_VatRule_Rate`: `Rate >= 0 AND Rate < 1`
+
 ## MarketPriceList
 
 Columns:
@@ -678,7 +697,34 @@ Constraints:
 
 - unique: `(InventoryLocationId, VariantId)`
 
+## InventoryAllocation
+
+Columns (EF/PostgreSQL runtime shape, migration `AddOrderInventoryAllocations`):
+
+- `Id uuid pk`
+- `OrderId uuid not null fk -> Order.Id (restrict)`
+- `InventoryBalanceId uuid not null fk -> InventoryBalance.Id (restrict)`
+- `InventoryLocationId uuid not null fk -> InventoryLocation.Id (restrict)`
+- `VariantId uuid not null`
+- `Quantity numeric(18,4) not null`
+- `BackorderedQuantity numeric(18,4) not null`
+- `Status varchar(32) not null` (`Reserved`, `Released`, `Shipped`)
+- `CreatedAtUtc timestamptz not null`
+- `UpdatedAtUtc timestamptz not null`
+- `RowVersion varchar(64) not null` (concurrency token)
+
+Constraints and indexes:
+
+- unique `UX_InventoryAllocation_OrderId_InventoryBalanceId`: one allocation per order and balance
+- check `CK_InventoryAllocation_Quantity`: `Quantity > 0`
+- check `CK_InventoryAllocation_BackorderedQuantity`: `BackorderedQuantity >= 0 AND BackorderedQuantity <= Quantity`
+- `(InventoryBalanceId, Status)` for outstanding-allocation sums; `(VariantId)`; `(InventoryLocationId)`
+
+Runtime note: `InventoryBalance.RowVersion` is a `varchar(64)` concurrency token in the EF model (not SQL Server `rowversion`); reservation, release, shipment, and admin writes all rotate it.
+
 ## InventoryReservation
+
+Target design for expiring cart/payment holds; not implemented.
 
 Columns:
 
@@ -712,6 +758,7 @@ Columns:
 - `ReferenceId uniqueidentifier not null`
 - `OccurredAtUtc datetime2 not null`
 - `CreatedAtUtc datetime2 not null`
+- `ReservedQuantityDelta numeric(18,4) not null default 0` (runtime: added by `AddOrderInventoryAllocations`; `QuantityDelta` is the on-hand change)
 
 Indexes:
 
@@ -1082,6 +1129,8 @@ Recommended backoffice areas:
 44. `WebhookDelivery`
 45. `IntegrationJob`
 46. `OutboxMessage`
+
+The runtime `InventoryAllocation` table (not in this draft order) is created after `[Order]`, `InventoryBalance`, and `InventoryLocation` because of its foreign keys.
 
 ## Recommended Next Step
 

@@ -9,5 +9,7 @@ public interface IInventoryLocationRepository
     Task<InventoryLocation?> GetByIdAsync(Guid inventoryLocationId, CancellationToken cancellationToken);
     Task<InventoryLocation?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<InventoryLocation>> GetByIdsAsync(IReadOnlyCollection<Guid> inventoryLocationIds, CancellationToken cancellationToken);
+    /// <summary>Active locations assigned to the market, with their market assignments.</summary>
+    Task<IReadOnlyList<InventoryLocation>> ListActiveByMarketAsync(Guid marketId, CancellationToken cancellationToken);
     Task AddAsync(InventoryLocation inventoryLocation, CancellationToken cancellationToken);
 }

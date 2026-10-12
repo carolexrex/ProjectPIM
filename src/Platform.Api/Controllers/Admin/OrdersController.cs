@@ -80,6 +80,8 @@ public sealed class OrdersController : ApiControllerBase
     [HttpPost]
     [Authorize(Policy = AdminPolicies.CustomerWrite)]
     [ProducesResponseType(typeof(OrderDetailsDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OrderDetailsDto>> CreateAsync([FromBody] CreateOrderRequest request, CancellationToken cancellationToken)
     {
         var created = await _orderService.CreateAsync(
@@ -115,7 +117,9 @@ public sealed class OrdersController : ApiControllerBase
     [HttpPost("{id:guid}/status")]
     [Authorize(Policy = AdminPolicies.CustomerWrite)]
     [ProducesResponseType(typeof(OrderStatusHistoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OrderStatusHistoryDto>> ChangeStatusAsync(Guid id, [FromBody] ChangeOrderStatusRequest request, CancellationToken cancellationToken)
     {
         var history = await _orderService.ChangeStatusAsync(

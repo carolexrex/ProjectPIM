@@ -354,7 +354,13 @@
                         <td>@transaction.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
                         <td><a asp-controller="Variants" asp-action="Details" asp-route-id="@transaction.VariantId">@transaction.VariantSku</a></td>
                         <td>@transaction.Type</td>
-                        <td>@transaction.QuantityDelta</td>
+                        <td>
+                            @transaction.QuantityDelta
+                            @if (transaction.ReservedQuantityDelta != 0m)
+                            {
+                                <br /><span class="table-secondary">Reserved @transaction.ReservedQuantityDelta.ToString("+0.####;-0.####")</span>
+                            }
+                        </td>
                         <td>@transaction.ReferenceType<br /><span class="table-secondary">@transaction.ReferenceId</span></td>
                     </tr>
                 }

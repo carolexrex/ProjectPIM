@@ -28,7 +28,8 @@ public sealed record InventoryTransactionDto(
     decimal QuantityDelta,
     string ReferenceType,
     Guid ReferenceId,
-    DateTime OccurredAtUtc);
+    DateTime OccurredAtUtc,
+    decimal ReservedQuantityDelta = 0m);
 
 public sealed record InventoryLocationSummaryDto(
     Guid Id,

@@ -137,6 +137,22 @@ market=$(admin PUT "/api/admin/markets/${MARKET_ID}/cultures" \
   "$(jq -nc --argjson rv "$(jq '.rowVersion' <<<"$market")" '{defaultCulture:"sv-SE",cultures:["sv-SE","en-GB"],rowVersion:$rv}')")
 
 # ---------------------------------------------------------------------------
+# VAT rule (cart pricing never assumes a rate; the smoke product uses STANDARD)
+# ---------------------------------------------------------------------------
+vat_rule=$(admin GET "/api/admin/vat-rules?marketId=${MARKET_ID}&taxCategoryCode=STANDARD" | jq -c '.items[0] // empty')
+if [[ -z "$vat_rule" ]]; then
+  log "Creating VAT rule SE/STANDARD (25%)"
+  admin POST "/api/admin/vat-rules" \
+    "$(jq -nc --arg m "$MARKET_ID" '{marketId:$m,taxCategoryCode:"STANDARD",rate:0.25,description:"Sweden standard rate"}')" >/dev/null
+elif ! jq -e '.rate == 0.25' <<<"$vat_rule" >/dev/null; then
+  log "Resetting VAT rule SE/STANDARD from $(jq -r '.rate' <<<"$vat_rule") to 25%"
+  admin PUT "/api/admin/vat-rules/$(jq -r '.id' <<<"$vat_rule")" \
+    "$(jq -nc --argjson rv "$(jq '.rowVersion' <<<"$vat_rule")" '{rate:0.25,description:"Sweden standard rate",rowVersion:$rv}')" >/dev/null
+else
+  log "Using existing VAT rule SE/STANDARD (25%)"
+fi
+
+# ---------------------------------------------------------------------------
 # Channel
 # ---------------------------------------------------------------------------
 existing=$(find_paged "/api/admin/channels" "WEB-SE" "code" "WEB-SE")
@@ -362,11 +378,15 @@ if [[ -z "$(jq -c --arg m "$MARKET_ID" '.markets[]? | select((.marketId|tostring
     "$(jq -nc --arg m "$MARKET_ID" --argjson rv "$(jq '.rowVersion' <<<"$location")" '{marketId:$m,priority:0,rowVersion:$rv}')")
 fi
 balance_rv=$(jq -r --arg v "$VARIANT_ID" '.balances[]? | select((.variantId|tostring)==$v) | .rowVersion' <<<"$location" | head -n1)
-log "Upserting variant inventory balance"
+current_reserved=$(jq -r --arg v "$VARIANT_ID" '[.balances[]? | select((.variantId|tostring)==$v) | .reservedQuantity][0] // 0' <<<"$location")
+# 2 units model an external hold. Open orders own the rest of the reserved quantity and a snapshot may
+# not drop below them, so keep any higher value left by an earlier run that did not reach its cleanup.
+seed_reserved=$(jq -n --argjson r "$current_reserved" '[$r, 2] | max')
+log "Upserting variant inventory balance (onHand=25, reserved=${seed_reserved})"
 admin PUT "/api/admin/inventory-balances" \
-  "$(jq -nc --arg loc "$LOCATION_ID" --arg v "$VARIANT_ID" \
+  "$(jq -nc --arg loc "$LOCATION_ID" --arg v "$VARIANT_ID" --argjson reserved "$seed_reserved" \
       --argjson rv "$([[ -n "$balance_rv" && "$balance_rv" != "null" ]] && jq -nc --arg r "$balance_rv" '$r' || echo null)" '{
-    inventoryLocationId:$loc,variantId:$v,onHandQuantity:25,reservedQuantity:2,incomingQuantity:10,
+    inventoryLocationId:$loc,variantId:$v,onHandQuantity:25,reservedQuantity:$reserved,incomingQuantity:10,
     backorderable:false,rowVersion:$rv}')" >/dev/null
 
 # ---------------------------------------------------------------------------
@@ -428,17 +448,24 @@ fi
 
 CART_HEADER="X-Storefront-Cart-Token"
 fail=0
+GATE_STEPS=10
 
-log "Cart gate 1/8: resolving context"
+# main_stock -> "onHand reserved" for the smoke variant at MAIN, read from the authoritative balance.
+main_stock() {
+  admin GET "/api/admin/variants/${VARIANT_ID}/inventory" \
+    | jq -r '.locations[] | select(.code=="MAIN") | "\(.onHandQuantity) \(.reservedQuantity)"'
+}
+
+log "Cart gate 1/${GATE_STEPS}: resolving context"
 curl_json GET "${STOREFRONT_API_URL}/api/storefront/context?${QS}" "" >/dev/null
 
-log "Cart gate 2/8: reading product detail and selecting a buyable variant"
+log "Cart gate 2/${GATE_STEPS}: reading product detail and selecting a buyable variant"
 product=$(curl_json GET "${STOREFRONT_API_URL}/api/storefront/products/example-drill?${QS}" "")
 variant_id=$(jq -r '(.variants[]? | select(.sku=="SKU-EXAMPLE-1-BLACK") | .id) // (.variants[0]?.id) // empty' <<<"$product")
 [[ -n "$variant_id" ]] || { echo "Could not resolve a variant id from product detail. Did the projection rebuild complete?" >&2; exit 1; }
 info "Selected variant: ${variant_id}"
 
-log "Cart gate 3/8: creating cart"
+log "Cart gate 3/${GATE_STEPS}: creating cart"
 cart_body=$(jq -nc --arg v "$variant_id" '{
   email:"smoke-buyer@example.com",
   lines:[{variantId:$v,quantity:1,comment:null}],
@@ -452,22 +479,44 @@ CART_TOKEN=$(jq -r '.cartAccessToken' <<<"$cart")
 ROW_VERSION=$(jq -c '.rowVersion' <<<"$cart")
 [[ -n "$CART_TOKEN" && "$CART_TOKEN" != "null" ]] || { echo "Cart creation did not return a cartAccessToken." >&2; exit 1; }
 info "Created cart ${CART_ID} (token captured, grandTotal=$(jq -r '.grandTotal' <<<"$cart"))"
+# 1499.00 SEK VAT-inclusive at the configured SE/STANDARD 25% rule -> 1199.20 net + 299.80 VAT.
+if jq -e '.lines[0].vatRate == 0.25 and .subtotal == 1199.2 and .vatTotal == 299.8 and .grandTotal == 1499' <<<"$cart" >/dev/null; then
+  info "VAT OK: line vatRate=$(jq -r '.lines[0].vatRate' <<<"$cart") from SE/STANDARD rule, subtotal=$(jq -r '.subtotal' <<<"$cart"), vatTotal=$(jq -r '.vatTotal' <<<"$cart")"
+else
+  echo "VAT FAILED: expected vatRate 0.25, subtotal 1199.20, vatTotal 299.80, grandTotal 1499.00; got $(jq -c '{vatRate:.lines[0].vatRate,subtotal,vatTotal,grandTotal}' <<<"$cart")" >&2
+  fail=1
+fi
 
-log "Cart gate 4/8: reading cart with ${CART_HEADER}"
+log "Cart gate 4/${GATE_STEPS}: reading cart with ${CART_HEADER}"
 curl_json GET "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}" "" -H "${CART_HEADER}: ${CART_TOKEN}" >/dev/null
 
-log "Cart gate 5/8: repricing cart"
+log "Cart gate 5/${GATE_STEPS}: repricing cart"
 cart=$(curl_json POST "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}/reprice" \
   "$(jq -nc --argjson rv "$ROW_VERSION" '{rowVersion:$rv}')" -H "${CART_HEADER}: ${CART_TOKEN}")
 ROW_VERSION=$(jq -c '.rowVersion' <<<"$cart")
 
-log "Cart gate 6/8: checking out cart"
+read -r stock_on_hand stock_reserved <<<"$(main_stock)"
+info "Stock before checkout: onHand=${stock_on_hand}, reserved=${stock_reserved}"
+
+log "Cart gate 6/${GATE_STEPS}: checking out cart (reserves stock)"
 order=$(curl_json POST "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}/checkout" \
   "$(jq -nc --argjson rv "$ROW_VERSION" '{rowVersion:$rv}')" -H "${CART_HEADER}: ${CART_TOKEN}")
 ORDER_ID=$(jq -r '.id' <<<"$order")
 info "Checkout produced order ${ORDER_ID} (number=$(jq -r '.orderNumber' <<<"$order"), status=$(jq -r '.status' <<<"$order"))"
+if ! jq -e '.lines[0].vatRate == 0.25 and .vatTotal == 299.8' <<<"$order" >/dev/null; then
+  echo "VAT FAILED: order snapshot $(jq -c '{vatRate:.lines[0].vatRate,vatTotal}' <<<"$order") does not match the SE/STANDARD 25% rule" >&2
+  fail=1
+fi
+expected_reserved=$(jq -n --argjson r "$stock_reserved" '$r + 1')
+read -r after_on_hand after_reserved <<<"$(main_stock)"
+if jq -e -n --argjson a "$after_reserved" --argjson e "$expected_reserved" --argjson h "$after_on_hand" --argjson h0 "$stock_on_hand" '$a == $e and $h == $h0' >/dev/null; then
+  info "Reservation OK: reserved ${stock_reserved} -> ${after_reserved}, onHand unchanged at ${after_on_hand}"
+else
+  echo "Reservation FAILED: expected reserved ${expected_reserved} and onHand ${stock_on_hand}; got reserved ${after_reserved}, onHand ${after_on_hand}" >&2
+  fail=1
+fi
 
-log "Cart gate 7/8: repeating checkout to confirm idempotency by source cart id"
+log "Cart gate 7/${GATE_STEPS}: repeating checkout to confirm idempotency by source cart id"
 order2=$(curl_json POST "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}/checkout" \
   "$(jq -nc --argjson rv "$ROW_VERSION" '{rowVersion:$rv}')" -H "${CART_HEADER}: ${CART_TOKEN}")
 ORDER_ID2=$(jq -r '.id' <<<"$order2")
@@ -477,14 +526,49 @@ else
   echo "Idempotency FAILED: first order ${ORDER_ID} != repeat order ${ORDER_ID2}" >&2
   fail=1
 fi
+read -r _ repeat_reserved <<<"$(main_stock)"
+if jq -e -n --argjson a "$repeat_reserved" --argjson e "$expected_reserved" '$a == $e' >/dev/null; then
+  info "Reservation idempotency OK: repeat checkout left reserved at ${repeat_reserved}"
+else
+  echo "Reservation idempotency FAILED: reserved changed to ${repeat_reserved} (expected ${expected_reserved})" >&2
+  fail=1
+fi
 
-log "Cart gate 8/8: confirming missing/invalid token returns 401"
+log "Cart gate 8/${GATE_STEPS}: confirming missing/invalid token returns 401"
 missing_status=$(http_status GET "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}" "")
 invalid_status=$(http_status GET "${STOREFRONT_API_URL}/api/storefront/carts/${CART_ID}" "" -H "${CART_HEADER}: not-a-valid-token")
 if [[ "$missing_status" == "401" && "$invalid_status" == "401" ]]; then
   info "Ownership proof OK: missing token -> ${missing_status}, invalid token -> ${invalid_status}"
 else
   echo "Ownership proof FAILED: missing token -> ${missing_status}, invalid token -> ${invalid_status} (expected 401/401)" >&2
+  fail=1
+fi
+
+log "Cart gate 9/${GATE_STEPS}: confirming an order beyond available stock is rejected"
+available=$(jq -n --argjson h "$after_on_hand" --argjson r "$after_reserved" '$h - $r')
+oversell_body=$(jq -nc --arg m "$MARKET_ID" --arg v "$VARIANT_ID" --argjson q "$(jq -n --argjson a "$available" '$a + 1')" '{
+  marketId:$m,currencyCode:"SEK",cultureCode:"sv-SE",email:"smoke-buyer@example.com",
+  lines:[{variantId:$v,quantity:$q,comment:"smoke oversell guard"}],addresses:[]}')
+oversell=$(curl -sS -X POST "${ADMIN_API_URL}/api/admin/orders" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${AUTH_TOKEN}" --data "$oversell_body" -w $'\n%{http_code}')
+oversell_status="${oversell##*$'\n'}"
+oversell_message=$(jq -r '[.errors[]?[]] | first // empty' <<<"${oversell%$'\n'*}")
+if [[ "$oversell_status" == "400" && "$oversell_message" == Insufficient\ stock* ]]; then
+  info "Oversell guard OK: ${oversell_message}"
+else
+  echo "Oversell guard FAILED: expected 400 'Insufficient stock...', got ${oversell_status}: ${oversell%$'\n'*}" >&2
+  fail=1
+fi
+
+log "Cart gate 10/${GATE_STEPS}: cancelling the smoke order releases its reservation"
+order_rv=$(admin GET "/api/admin/orders/${ORDER_ID}" | jq -c '.rowVersion')
+admin POST "/api/admin/orders/${ORDER_ID}/status" \
+  "$(jq -nc --argjson rv "$order_rv" '{toStatus:"Cancelled",comment:"Storefront smoke cleanup",rowVersion:$rv}')" >/dev/null
+read -r released_on_hand released_reserved <<<"$(main_stock)"
+if jq -e -n --argjson a "$released_reserved" --argjson e "$stock_reserved" --argjson h "$released_on_hand" --argjson h0 "$stock_on_hand" '$a == $e and $h == $h0' >/dev/null; then
+  info "Release OK: reserved back to ${released_reserved}, onHand ${released_on_hand}"
+else
+  echo "Release FAILED: expected reserved ${stock_reserved}, onHand ${stock_on_hand}; got reserved ${released_reserved}, onHand ${released_on_hand}" >&2
   fail=1
 fi
 

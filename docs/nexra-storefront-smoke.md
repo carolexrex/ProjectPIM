@@ -25,8 +25,11 @@ The seed path creates the demo identifiers used by the storefront examples:
 - product slug `example-drill`
 - product number `SKU-EXAMPLE-1`
 - variant SKU `SKU-EXAMPLE-1-BLACK`
+- VAT rule `SE` / `STANDARD` at 25% (the smoke product's tax category)
 
 It also creates pricing, inventory, media metadata, market/channel assignments, and requests a storefront projection rebuild.
+
+Cart pricing never assumes a VAT rate, so the scripts create the `SE`/`STANDARD` VAT rule (or reset it to 25% if it exists with another rate). Without it, cart creation, repricing, and checkout fail with a `TaxCategoryCode` validation error. The bash script's cart gate also asserts that the created cart and the placed order carry `vatRate` 0.25 with `subtotal` 1199.20, `vatTotal` 299.80, and `grandTotal` 1499.00 for the 1499.00 SEK VAT-inclusive price.
 
 ## Prerequisites
 
@@ -67,7 +70,7 @@ bash ./scripts/seed-storefront-smoke.sh
 
 Both scripts are designed to be rerunnable. They reuse existing smoke records when they already exist and upsert the pieces that need current row versions.
 
-The bash script additionally runs the storefront cart/checkout gate from `docs/pim-roadmap-v1.md` after the read smoke (create cart, capture token + row version, read/reprice with `X-Storefront-Cart-Token`, checkout, repeat checkout for idempotency, and confirm missing/invalid token returns `401`). Pass `--skip-cart-smoke` to seed and read-smoke only. Other flags: `--skip-projection-rebuild`, `--skip-smoke-check`, `--projection-wait-seconds <n>`, `--culture <code>`.
+The bash script additionally runs the 10-step storefront cart/checkout gate from `docs/pim-roadmap-v1.md` after the read smoke: create cart, capture token + row version, read/reprice with `X-Storefront-Cart-Token`, checkout (asserting the `MAIN` balance's `reservedQuantity` rose by 1 with `onHandQuantity` unchanged), repeat checkout for idempotency (same order, no second reservation), confirm missing/invalid token returns `401`, confirm an admin manual order for one more unit than is available returns `400` `Insufficient stock ...`, and cancel the smoke order to confirm the reservation is released. Because each run cancels its own order, re-running leaves stock at `onHand 25 / reserved 2`. The balance upsert keeps any higher `reservedQuantity` left by an interrupted run, since a snapshot may not drop below what open orders hold. Pass `--skip-cart-smoke` to seed and read-smoke only. Other flags: `--skip-projection-rebuild`, `--skip-smoke-check`, `--projection-wait-seconds <n>`, `--culture <code>`.
 
 ## Smoke URLs
 

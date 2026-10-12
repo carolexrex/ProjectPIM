@@ -16,6 +16,7 @@ namespace Platform.Infrastructure.Storefront;
 public sealed class StorefrontCartApplicationService : IStorefrontCartApplicationService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> StockReasons = new(["OutOfStock", "Unavailable"], StringComparer.Ordinal);
 
     private readonly ICartRepository _cartRepository;
     private readonly IStorefrontContextApplicationService _contextService;
@@ -211,12 +212,15 @@ public sealed class StorefrontCartApplicationService : IStorefrontCartApplicatio
             return StorefrontCheckoutResult.Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(cart.Email))
+        // A converted cart is a repeated checkout: skip the pre-checks (its stock is now reserved, so
+        // the projection may already say out of stock) and let order creation return the original order.
+        var isRepeat = !string.Equals(cart.Status, "Active", StringComparison.OrdinalIgnoreCase);
+        if (!isRepeat && string.IsNullOrWhiteSpace(cart.Email))
         {
             return StorefrontCheckoutResult.Invalid(nameof(cart.Email), "Cart email is required before checkout.");
         }
 
-        var addressErrors = ValidateCheckoutAddresses(cart);
+        var addressErrors = isRepeat ? [] : ValidateCheckoutAddresses(cart);
         if (addressErrors.Count > 0)
         {
             return StorefrontCheckoutResult.Invalid(addressErrors);
@@ -224,12 +228,16 @@ public sealed class StorefrontCartApplicationService : IStorefrontCartApplicatio
 
         try
         {
-            var buyabilityErrors = await ValidateLinesAreBuyableAsync(
-                cart.Lines,
-                cart.MarketId,
-                cart.CultureCode,
-                cart.CurrencyCode,
-                cancellationToken);
+            // Projected stock can lag; order placement reserves against live balances and is the
+            // stock authority at checkout, so only visibility, status, and price are checked here.
+            var buyabilityErrors = isRepeat
+                ? []
+                : await ValidateLinesAreBuyableAsync(
+                    cart.Lines,
+                    cart.MarketId,
+                    cart.CultureCode,
+                    cart.CurrencyCode,
+                    cancellationToken);
             if (buyabilityErrors.Count > 0)
             {
                 return StorefrontCheckoutResult.Invalid(buyabilityErrors);
@@ -260,6 +268,10 @@ public sealed class StorefrontCartApplicationService : IStorefrontCartApplicatio
         {
             return StorefrontCheckoutResult.Invalid(nameof(command.RowVersion), exception.Message);
         }
+        catch (ConcurrentWriteException exception)
+        {
+            return StorefrontCheckoutResult.Conflict(exception.Message);
+        }
         catch (InvalidOperationException exception)
         {
             return StorefrontCheckoutResult.Invalid(nameof(command.CartId), exception.Message);
@@ -285,12 +297,18 @@ public sealed class StorefrontCartApplicationService : IStorefrontCartApplicatio
         CancellationToken cancellationToken)
     {
         var projections = await _projectionRepository.ListByContextAsync(marketId, cultureCode, currencyCode, cancellationToken);
-        return ValidateLinesAreBuyable(lines, projections);
+        return ValidateLinesAreBuyable(lines, projections, useProjectedStock: false);
     }
 
+    /// <summary>
+    /// Validates lines against projected buyability. With <paramref name="useProjectedStock"/> false
+    /// (checkout), stock reasons and projected quantities are ignored because reservation checks live
+    /// balances; cart creation keeps the projected stock check as early feedback.
+    /// </summary>
     private static Dictionary<string, string[]> ValidateLinesAreBuyable(
         IEnumerable<CartDomain.CartLine> lines,
-        IReadOnlyList<StorefrontProductProjection> projections)
+        IReadOnlyList<StorefrontProductProjection> projections,
+        bool useProjectedStock = true)
     {
         var errors = new Dictionary<string, string[]>();
         var variantsById = projections
@@ -308,16 +326,20 @@ public sealed class StorefrontCartApplicationService : IStorefrontCartApplicatio
                 continue;
             }
 
-            if (!variant.Buyability.IsBuyable)
+            var blockingReasons = useProjectedStock
+                ? variant.Buyability.Reasons
+                : variant.Buyability.Reasons.Where(x => !StockReasons.Contains(x)).ToList();
+            var isBuyable = useProjectedStock ? variant.Buyability.IsBuyable : blockingReasons.Count == 0;
+            if (!isBuyable)
             {
-                var reasons = variant.Buyability.Reasons.Count == 0
+                var reasons = blockingReasons.Count == 0
                     ? "not buyable"
-                    : string.Join(", ", variant.Buyability.Reasons);
+                    : string.Join(", ", blockingReasons);
                 errors[key] = [$"Variant {variant.Sku} is not buyable in the storefront context: {reasons}."];
                 continue;
             }
 
-            if (!variant.Availability.IsBackorderable && line.Quantity > variant.Availability.AvailableQuantity)
+            if (useProjectedStock && !variant.Availability.IsBackorderable && line.Quantity > variant.Availability.AvailableQuantity)
             {
                 errors[key] = [$"Variant {variant.Sku} has only {variant.Availability.AvailableQuantity} available in the storefront context."];
             }

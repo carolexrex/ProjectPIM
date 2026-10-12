@@ -25,6 +25,7 @@ public sealed class ApiExceptionHandler : IExceptionHandler
         {
             RequestValidationException => (StatusCodes.Status400BadRequest, "Request validation failed.", "https://httpstatuses.com/400"),
             ConflictException => (StatusCodes.Status409Conflict, "The request conflicted with the current state.", "https://httpstatuses.com/409"),
+            ConcurrentWriteException => (StatusCodes.Status409Conflict, "The request conflicted with a concurrent change. Retry the request.", "https://httpstatuses.com/409"),
             ConcurrencyException => (StatusCodes.Status409Conflict, "The resource was modified by another operation.", "https://httpstatuses.com/409"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "https://httpstatuses.com/500")
         };

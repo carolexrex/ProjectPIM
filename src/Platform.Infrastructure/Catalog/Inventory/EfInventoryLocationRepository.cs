@@ -64,6 +64,16 @@ public sealed class EfInventoryLocationRepository : IInventoryLocationRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<InventoryLocation>> ListActiveByMarketAsync(Guid marketId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.InventoryLocations
+            .AsNoTracking()
+            .Include(x => x.MarketAssignments)
+            .Where(x => x.Status == "Active" && x.MarketAssignments.Any(y => y.MarketId == marketId))
+            .OrderBy(x => x.Code)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(InventoryLocation inventoryLocation, CancellationToken cancellationToken)
     {
         await _dbContext.InventoryLocations.AddAsync(inventoryLocation, cancellationToken);

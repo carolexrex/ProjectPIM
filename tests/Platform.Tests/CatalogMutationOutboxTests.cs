@@ -323,6 +323,8 @@ public sealed class CatalogMutationOutboxTests
         return new InventoryAdminApplicationService(
             new InMemoryInventoryLocationRepository(store),
             new InMemoryInventoryBalanceRepository(store),
+            new InMemoryInventoryAllocationRepository(store),
+            InventoryTestServices.CreateCoordinator(store),
             new InMemoryMarketRepository(store),
             new InMemoryVariantRepository(store),
             new StorefrontProjectionRefreshRequestPublisher(new OutboxEventPublisher(new InMemoryOutboxMessageRepository(store))),

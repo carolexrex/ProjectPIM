@@ -15,6 +15,7 @@ using Platform.Domain.Catalog.Markets;
 using Platform.Domain.Catalog.Media;
 using Platform.Domain.Catalog.Pricing;
 using Platform.Domain.Catalog.Products;
+using Platform.Domain.Catalog.Tax;
 using Platform.Domain.Catalog.Variants;
 using Platform.Domain.Companies;
 using Platform.Domain.Customers;
@@ -38,6 +39,7 @@ public sealed class PlatformDbContext : DbContext, IUnitOfWork
         typeof(CompanyMembership),
         typeof(Customer),
         typeof(CartEntity),
+        typeof(InventoryAllocation),
         typeof(InventoryBalance),
         typeof(InventoryLocation),
         typeof(InventoryTransaction),
@@ -49,7 +51,8 @@ public sealed class PlatformDbContext : DbContext, IUnitOfWork
         typeof(PriceList),
         typeof(Product),
         typeof(ProductAttribute),
-        typeof(Variant)
+        typeof(Variant),
+        typeof(VatRule)
     ];
     private static readonly HashSet<string> ExcludedAuditPropertyNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -83,6 +86,7 @@ public sealed class PlatformDbContext : DbContext, IUnitOfWork
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryLocationMarketAssignment> InventoryLocationMarketAssignments => Set<InventoryLocationMarketAssignment>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<InventoryAllocation> InventoryAllocations => Set<InventoryAllocation>();
     public DbSet<Channel> Channels => Set<Channel>();
     public DbSet<ChannelMarketAssignment> ChannelMarketAssignments => Set<ChannelMarketAssignment>();
     public DbSet<Market> Markets => Set<Market>();
@@ -93,6 +97,7 @@ public sealed class PlatformDbContext : DbContext, IUnitOfWork
     public DbSet<PriceList> PriceLists => Set<PriceList>();
     public DbSet<PriceListEntry> PriceListEntries => Set<PriceListEntry>();
     public DbSet<PriceListMarketAssignment> PriceListMarketAssignments => Set<PriceListMarketAssignment>();
+    public DbSet<VatRule> VatRules => Set<VatRule>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<Company> Companies => Set<Company>();

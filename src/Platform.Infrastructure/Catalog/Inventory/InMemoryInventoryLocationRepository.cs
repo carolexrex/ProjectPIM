@@ -57,6 +57,16 @@ public sealed class InMemoryInventoryLocationRepository : IInventoryLocationRepo
             _store.InventoryLocations.Values.Where(x => inventoryLocationIds.Contains(x.Id)).ToList());
     }
 
+    public Task<IReadOnlyList<InventoryLocation>> ListActiveByMarketAsync(Guid marketId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<InventoryLocation>>(
+            _store.InventoryLocations.Values
+                .Where(x => string.Equals(x.Status, "Active", StringComparison.OrdinalIgnoreCase)
+                    && x.MarketAssignments.Any(y => y.MarketId == marketId))
+                .OrderBy(x => x.Code, StringComparer.Ordinal)
+                .ToList());
+    }
+
     public Task AddAsync(InventoryLocation inventoryLocation, CancellationToken cancellationToken)
     {
         _store.InventoryLocations[inventoryLocation.Id] = inventoryLocation;

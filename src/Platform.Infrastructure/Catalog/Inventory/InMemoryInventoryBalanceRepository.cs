@@ -30,6 +30,27 @@ public sealed class InMemoryInventoryBalanceRepository : IInventoryBalanceReposi
             _store.InventoryBalances.Values.Where(x => x.VariantId == variantId).OrderBy(x => x.InventoryLocationId).ToList());
     }
 
+    public Task<IReadOnlyList<InventoryBalance>> ListForUpdateAsync(
+        IReadOnlyCollection<Guid> variantIds,
+        IReadOnlyCollection<Guid> inventoryLocationIds,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<InventoryBalance>>(
+            _store.InventoryBalances.Values
+                .Where(x => variantIds.Contains(x.VariantId) && inventoryLocationIds.Contains(x.InventoryLocationId))
+                .OrderBy(x => x.Id)
+                .ToList());
+    }
+
+    public Task<IReadOnlyList<InventoryBalance>> GetByIdsForUpdateAsync(IReadOnlyCollection<Guid> inventoryBalanceIds, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<InventoryBalance>>(
+            _store.InventoryBalances.Values
+                .Where(x => inventoryBalanceIds.Contains(x.Id))
+                .OrderBy(x => x.Id)
+                .ToList());
+    }
+
     public Task<IReadOnlyList<InventoryTransaction>> ListTransactionsByInventoryLocationAsync(Guid inventoryLocationId, int take, CancellationToken cancellationToken)
     {
         return Task.FromResult<IReadOnlyList<InventoryTransaction>>(

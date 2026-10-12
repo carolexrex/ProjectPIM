@@ -95,18 +95,7 @@ public sealed class Order
 
     public OrderStatusHistory ChangeStatus(string toStatus, string changedBy, string? comment, string rowVersion)
     {
-        EnsureRowVersion(rowVersion);
-
-        var normalizedToStatus = NormalizeRequired(toStatus);
-        if (string.Equals(Status, normalizedToStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Order status is already set to the requested value.");
-        }
-
-        if (!AllowedStatusTransitions.TryGetValue(Status, out var allowed) || !allowed.Contains(normalizedToStatus, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Illegal order state transition from {Status} to {normalizedToStatus}.");
-        }
+        var normalizedToStatus = ValidateStatusChange(toStatus, rowVersion);
 
         var history = new OrderStatusHistory(Guid.NewGuid(), Id, Status, normalizedToStatus, changedBy, DateTime.UtcNow, comment);
         Status = normalizedToStatus;
@@ -123,6 +112,28 @@ public sealed class Order
         _statusHistory.Add(history);
         Touch();
         return history;
+    }
+
+    /// <summary>
+    /// Checks the row version and the transition without changing the order, so callers can verify
+    /// dependent state (such as inventory) before any mutation. Returns the normalized target status.
+    /// </summary>
+    public string ValidateStatusChange(string toStatus, string rowVersion)
+    {
+        EnsureRowVersion(rowVersion);
+
+        var normalizedToStatus = NormalizeRequired(toStatus);
+        if (string.Equals(Status, normalizedToStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Order status is already set to the requested value.");
+        }
+
+        if (!AllowedStatusTransitions.TryGetValue(Status, out var allowed) || !allowed.Contains(normalizedToStatus, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Illegal order state transition from {Status} to {normalizedToStatus}.");
+        }
+
+        return allowed.First(x => string.Equals(x, normalizedToStatus, StringComparison.OrdinalIgnoreCase));
     }
 
     public PaymentTransaction AddPaymentTransaction(

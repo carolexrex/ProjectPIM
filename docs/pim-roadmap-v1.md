@@ -29,7 +29,8 @@ Implemented in code today:
   - markets and market product assignments
   - channels and channel-market assignments
   - price lists, entries, and market assignments
-- inventory locations, balances, transactions, and variant inventory snapshots
+  - VAT rules keyed by market and product tax category code
+- inventory locations, balances, transactions, variant inventory snapshots, and order inventory allocations (reserve on placement, release on cancellation, ship on completion)
 - customers, companies, addresses, and company memberships
 - carts, orders, order status history, and payment transaction records
 - persisted integration jobs, admin job endpoints, worker execution for brand/product import-export, and outbox/webhook delivery with first-pass catalog/pricing mutation event coverage
@@ -38,9 +39,9 @@ Implemented in code today:
 
 Important current gaps:
 
-- tax resolution is not implemented; cart/order pricing currently uses a fixed VAT rate in infrastructure rather than tax-category and market rules
+- tax is limited to configured market/tax-category VAT rules; destination-based taxation, exemptions, and B2B reverse charge are not implemented (see `domain-spec-v1.md` `VatRule`)
 - company-specific price lists/customer-context price resolution are not implemented, even though the domain model leaves room for B2B pricing
-- checkout/order creation does not reserve, allocate, or decrement inventory; stock changes still come only from explicit inventory adjustments
+- inventory is reserved when an order is placed, not when a cart is built or a payment is authorized; there are no expiring cart/payment holds, partial shipments, returns, or transfers yet (see `domain-spec-v1.md` `InventoryAllocation`)
 - product status definitions have the target shadow columns in EF, but the domain/application/API surface currently only works with `IsBuyable`; visibility/search/default/sort behavior is not fully surfaced or enforced
 
 Present but still incomplete:
@@ -62,8 +63,8 @@ Present but still incomplete:
 - brand management
 - market management
 - channel management
-- pricing and price lists, excluding tax-category resolution and company/customer-specific pricing
-- inventory locations, balances, and transactions, excluding reservation/allocation during checkout
+- pricing and price lists with market/tax-category VAT rules, excluding company/customer-specific pricing
+- inventory locations, balances, transactions, and order-placement reservations with cancellation release and completion shipment
 - customer and company administration
 - cart and order administration foundations
 - integration job persistence, brand/product import-export background execution, and webhook/outbox foundation with catalog/pricing mutation events
@@ -128,7 +129,7 @@ Exit criteria:
 Status:
 
 - implemented for admin-managed locations, balances, adjustments, transactions, and snapshots
-- reservation/allocation loop not implemented
+- order inventory reservation lifecycle implemented (placement reserves, cancellation releases, completion ships)
 
 Scope:
 
@@ -156,11 +157,25 @@ Completed:
 - backoffice supports inventory administration and variant inventory visibility
 - migration `AddInventoryModule` exists
 
+- order inventory reservation (migration `AddOrderInventoryAllocations`):
+  - storefront checkout, admin cart conversion, and admin manual orders reserve through one shared order path; carts alone reserve nothing
+  - demand is aggregated per variant (duplicate and fractional lines included) and allocated deterministically across active locations assigned to the order market: location market priority, then location code, then balance id
+  - `InventoryAllocation` rows link the order to each balance; `ReservedQuantity` rises on placement and `OnHandQuantity` is unchanged
+  - a shortfall is backordered on the first backorderable balance in that order; with no backorderable balance the order is rejected with a per-variant stock error
+  - cancellation releases outstanding allocations exactly once; completion ships them once (on-hand and reserved both decrease) and is rejected when the stock is not physically on hand; orders placed before this slice have no allocations and settle without stock movement
+  - order, cart conversion, allocations, balance changes, inventory transactions (`Reservation`, `ReservationRelease`, `Shipment`, with `ReservedQuantityDelta`), and projection refresh outbox rows commit in one save
+  - PostgreSQL: row-version tokens on balances, allocations, carts, and orders plus the unique source-cart index reject conflicting saves; the inventory write coordinator reruns the operation against fresh state (bounded), so a lost last-unit race becomes a stock error and a lost duplicate checkout returns the original order; unresolved conflicts return 409, never 500
+  - in-memory provider: the same operations, plus admin stock writes, are serialized by a store-wide lock and validate before mutating
+  - admin balance snapshots cannot drop `ReservedQuantity` below what open orders hold
+  - storefront checkout uses live balances, not projected stock, and a repeated checkout of a converted cart returns the original order even after the variant shows out of stock
+  - reservation and release enqueue targeted variant projection refreshes; shipment leaves available stock unchanged and enqueues none
+  - tests cover the allocation policy, multi-location priority, market isolation, archived locations, duplicate fractional lines, multi-line rollback, backorders, repeated and concurrent checkout, cancellation/completion, legacy orders, competing admin adjustments, and opt-in PostgreSQL race tests (`PLATFORM_TEST_POSTGRES`)
+
 Known gaps before real checkout traffic:
 
-- there is no `InventoryReservation` aggregate/table/runtime flow
-- order creation from cart does not write an `OrderAllocation` or similar inventory transaction
-- projected availability is not decremented by order placement; it changes only when balances are explicitly adjusted
+- reservations start at order placement; expiring cart/payment-authorization holds are future work and must reuse the allocation ledger
+- no partial fulfilment, split shipments, returns/restocks, or inter-location transfers; completion ships the whole order
+- the storefront projection does not reflect what a pending order will consume until the worker processes the refresh request
 
 ### 2. Customers And Companies
 
@@ -237,8 +252,8 @@ Exit criteria:
 
 Status:
 
-- implemented for admin carts/orders and storefront checkout-to-order conversion
-- not payment- or stock-allocation-complete
+- implemented for admin carts/orders and storefront checkout-to-order conversion, with order-placement inventory reservation
+- not payment-complete
 
 Scope:
 
@@ -266,11 +281,16 @@ Completed:
 - backoffice supports cart inspection, repricing, expiration, cart-to-order conversion, and order operations
 - order creation from carts is idempotent and company permissions are enforced for company-context ordering
 - migration `AddCartOrderModule` exists
+- cart pricing resolves each line's VAT rate from the `VatRule` for the cart market and the product `TaxCategoryCode` (migration `AddVatRules`, admin API `/api/admin/vat-rules`); admin repricing, storefront cart creation/repricing, checkout, and manual orders share this one path
+- a missing VAT rule fails pricing with a `TaxCategoryCode` validation error; no default rate (25% or zero) is assumed, and zero must be configured explicitly
+- placed orders keep their line `VatRate` snapshot when rules change later; repeat checkout returns the original order
+- tests cover mixed tax categories in one cart, the same category across markets, explicit zero rates, missing rules, VAT-inclusive/exclusive lists with priority, validity, and quantity breaks, fractional quantities and rounding, order snapshots after rule changes, checkout ownership/idempotency, row-version conflicts, and provider/DI parity
+- placing an order reserves stock through the same shared path, and cancellation/completion release or ship it exactly once (see `1. Inventory` above); a stock shortfall is a per-variant `VariantId.{id}` validation error and an unresolved concurrent write is a 409
 
 Known gaps before payment work:
 
-- cart pricing uses a fixed VAT rate rather than tax-category and market-specific tax rules
-- order creation does not reserve, allocate, or deduct inventory
+- tax is configured market/category VAT only: destination-based taxation (ship-to country), customer/company exemptions, B2B reverse charge, effective-dated rate changes, and tax on shipping/fees are future work
+- inventory is held only from order placement; payment work that authorizes before placement needs expiring holds on the same allocation ledger
 - storefront cart creation currently starts without customer/company context; B2B cart pricing is not active
 
 ### 4. Custom Fields And AI Workflow Foundation
@@ -406,6 +426,7 @@ Completed In Current Slice:
 - tests cover price-validity windows (future, expired, inclusive boundary, entry and price-list fallback, missing-price buyability), the time-driven price-validity refresh pass, bounded multi-pass progress that is not starved by reserved products, dedup across repeated and concurrent scans, delayed-retry preservation, abandoned-reservation and reset/publish key lifecycle, per-product failure isolation, provider parity, and PostgreSQL translation of the scan query
 - tests cover market/channel resolution, host-name resolution, ambiguity handling, storefront category localization, category breadcrumbs, product visibility, product-number lookup, product browse facets/sorting, projection building/refresh, price/inventory resolution, and culture/currency fallback behavior
 - tests cover storefront cart creation, pricing, buyability validation, cart access-token ownership proof, checkout address validation, checkout conversion, idempotent checkout, and empty-cart validation
+- checkout reserves stock against live balances (projected stock is only an early hint at cart creation), returns `409` when a concurrent write cannot be resolved by an in-request retry, and answers a repeated checkout of a converted cart with the original order even when the projection now says out of stock
 
 Known storefront correctness/scaling gaps:
 
@@ -414,7 +435,8 @@ Known storefront correctness/scaling gaps:
 - when two worker instances race on the same product, the losing pass stops early and resumes on the next scan interval
 - a product whose scheduled refresh was abandoned stays out of the scan until an operator resets that message, so its projection remains stale in the meantime
 - cart buyability validation should move from whole-context projection scans to variant-targeted lookup before catalog size grows materially
-- tax and company-specific price resolution are not part of the current storefront cart path
+- company-specific price resolution is not part of the current storefront cart path; storefront carts use configured market/tax-category VAT rules only
+- projection buyability does not check VAT configuration; a variant whose tax category has no rule in the market is shown as buyable but fails cart pricing with a `TaxCategoryCode` validation error
 
 ### 7. Audit, History, And Stronger Identity
 
@@ -538,7 +560,7 @@ Exit criteria:
 
 ## Recommended Sequencing
 
-1. fix commerce correctness gates: tax-category/market tax resolution, projection entry validity windows with time-based refresh, and checkout inventory allocation/deduction
+1. commerce correctness gates are done: order-placement inventory reservation with release/shipment, tax-category/market VAT resolution, and projection entry validity windows with time-based refresh
 2. validate the storefront cart/checkout path with a live smoke from the consuming storefront/Nexra side
 3. choose the next commerce slice: payment initiation/callbacks or fuller cart line mutation endpoints
 4. align the Backoffice shell/theme and Natrium naming decision with `backoffice-ux-direction.md`
@@ -556,9 +578,13 @@ Exit criteria:
 
 ## Immediate Next Step
 
-Storefront projection entry-window handling with time-driven refresh is now done. Fix the two remaining commerce correctness gates before starting payment provider work: tax-category/market tax resolution and order-placement inventory allocation/deduction.
+The commerce correctness gates are done: storefront projection entry windows with time-driven refresh, market/tax-category VAT resolution, and order-placement inventory reservation with cancellation release and completion shipment.
 
-After those fixes, run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
+VAT rules are required configuration: after applying migration `AddVatRules`, every market must have a `VatRule` for each product `TaxCategoryCode` it sells before carts in that market can be priced. The smoke scripts seed `SE`/`STANDARD` at 25%.
+
+Inventory is now authoritative at order placement: after applying migration `AddOrderInventoryAllocations`, a variant can only be ordered in a market when an active inventory location assigned to that market holds a balance for it with enough available stock (or a backorderable balance). Existing `ReservedQuantity` values are treated as holds outside the order ledger and are never released by order settlement.
+
+Next, run a live storefront cart/checkout smoke against `Platform.StorefrontApi` from the consuming storefront or Nexra integration side.
 
 The smoke should use the canonical local base URL `http://localhost:5064/api/storefront` and the current cart ownership flow:
 
@@ -568,8 +594,12 @@ The smoke should use the canonical local base URL `http://localhost:5064/api/sto
 4. read the cart with `X-Storefront-Cart-Token`
 5. reprice the cart with `X-Storefront-Cart-Token` and the latest `rowVersion`
 6. checkout the cart with `X-Storefront-Cart-Token`, billing address, shipping address, and the latest `rowVersion`
-7. repeat checkout once to confirm idempotency by source cart id
+7. repeat checkout once to confirm idempotency by source cart id, and that reserved stock did not change again
 8. verify missing or invalid `X-Storefront-Cart-Token` returns `401`
+9. confirm the checkout raised `ReservedQuantity` by the ordered quantity at the market's stock location, with on-hand unchanged, and that an order beyond available stock is rejected
+10. cancel the smoke order and confirm the reservation is released
+
+`scripts/seed-storefront-smoke.sh` automates all ten steps against the admin and storefront APIs.
 
 Passing this smoke is the gate before starting the next commerce slice. After the smoke, choose between payment initiation/callbacks and fuller cart line mutation endpoints.
 

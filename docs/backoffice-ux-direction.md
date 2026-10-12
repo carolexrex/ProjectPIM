@@ -220,7 +220,7 @@ This phase should not start until the Operations Console proves which commands u
 
 After reviewing the current docs, the active workstream is still:
 
-1. fix the commerce correctness gates before payment work: tax-category/market tax resolution, projection price entry windows with time-based refresh, and inventory allocation/deduction on order placement
+1. commerce correctness gates are done: order-placement inventory reservation with cancellation release and completion shipment, tax-category/market VAT resolution, and projection price entry windows with time-based refresh (VAT rules and order inventory allocations are API-only; the location transaction table now shows reserved-quantity deltas, but there is no allocation screen yet)
 2. validate the live storefront cart/checkout smoke from Nexra or another consuming storefront
 3. choose the next commerce slice: payment initiation/callbacks or fuller cart line mutation operations
 4. keep Backoffice API-first and improve the UX around existing admin APIs, especially effective-price and buyability diagnostics

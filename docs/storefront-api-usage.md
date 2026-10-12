@@ -65,6 +65,7 @@ For a live PostgreSQL smoke, create at least:
 - market `SE` with supported culture/currency
 - channel `WEB-SE` assigned to market `SE`
 - visible categories, products, variants, prices, and inventory
+- a VAT rule (`/api/admin/vat-rules`) for market `SE` and each product `taxCategoryCode` sold there; carts are not priced without one
 - storefront product projections, either through the projection rebuild job or worker-processed refresh requests
 
 Product browse/detail endpoints read from `StorefrontProductProjection`, so admin writes alone are not enough for product smoke tests until projections have been built.
@@ -363,7 +364,9 @@ Behavior notes:
 - the endpoint resolves context with the same `channel`, `market`, `culture`, and `currency` parameters used by product reads
 - cart lines must use storefront-visible and buyable variant ids from product detail responses
 - line quantity must not exceed projected available quantity unless the variant is backorderable
-- prices are resolved from active market price lists
+- prices are resolved from active market price lists; each line's `vatRate` comes from the VAT rule for the cart market and the product tax category
+- when the price list is VAT-inclusive (`vatIncluded: true` on product price metadata), the line `unitPrice` is the net amount `round(amount / (1 + vatRate), 2)`; `subtotal` is net, `vatTotal` is VAT, and `grandTotal` is gross
+- a line whose tax category has no VAT rule in the market fails with `400` and `errors.TaxCategoryCode`; no default rate is assumed
 - the response includes a `rowVersion` used by later cart actions and a `cartAccessToken` used as cart ownership proof
 
 ## 8. Get Cart
@@ -434,19 +437,26 @@ Behavior notes:
 - checkout reprices the cart and converts it to an order in the same application flow
 - checkout requires the cart access token in `X-Storefront-Cart-Token`
 - checkout requires cart email plus `Billing` and `Shipping` addresses
-- checkout revalidates line buyability against the current storefront projection before conversion
-- checkout is idempotent by source cart id; repeating checkout for an already converted cart returns the existing order
-- payment initiation is not implemented in this slice
-- inventory reservation/allocation is not implemented in this slice; order placement does not decrement projected stock
-- cart/order tax calculation is not production-complete; tax-category and market-specific tax resolution are still pending
+- checkout revalidates line visibility, status, and price against the current storefront projection before conversion; stock is not taken from the projection
+- checkout reserves stock against live inventory balances in the same commit that creates the order: `ReservedQuantity` rises at the market's stock locations, on-hand stock is unchanged, and the variant projections are refreshed by the worker shortly after
+- a stock shortfall returns `400` with one `VariantId.{variantId}` error per short variant, e.g. `Insufficient stock for SKU-EXAMPLE-1-BLACK in market 'SE': requested 3, available 1.`; nothing is committed and the same `rowVersion` can be retried later
+- a backorderable balance accepts the shortfall instead of rejecting it
+- if a concurrent checkout or stock change wins a race that the in-request retry cannot resolve, checkout returns `409` with an `errors.Checkout` message; nothing was committed and the client may retry with the same `rowVersion`
+- checkout is idempotent by source cart id; repeating checkout for an already converted cart (including concurrent repeats) returns the existing order without reserving again, even when the projection now reports the variant out of stock
+- payment initiation is not implemented in this slice; stock is held from order placement, not from payment authorization
+- checkout reprices with the VAT rules in force at that moment; the order keeps that VAT snapshot even if rules change later, and a repeated checkout returns the original order
+- tax covers configured market/tax-category VAT only; destination-based taxation, exemptions, and B2B reverse charge are not implemented
 
 ## Error Handling
 
 Current error patterns:
 
 - `400` when the storefront context is invalid
+- `400` with `errors.TaxCategoryCode` when cart pricing finds no VAT rule for a line's market and tax category
+- `400` with `errors["VariantId.{variantId}"]` when checkout finds insufficient stock (or no stock location in the market) for a variant
 - `401` when cart access token ownership proof is missing or invalid
 - `404` when the requested channel, market, category, brand, or product does not exist in the resolved context
+- `409` with `errors.Checkout` when checkout loses a concurrent write race that the in-request retry could not resolve; retry with the same `rowVersion`
 
 ## Current Coverage
 
@@ -475,8 +485,12 @@ Smoke checklist:
 4. call `GET /carts/{cartId}` with `X-Storefront-Cart-Token`
 5. call `POST /carts/{cartId}/reprice` with `X-Storefront-Cart-Token` and the latest `rowVersion`
 6. call `POST /carts/{cartId}/checkout` with `X-Storefront-Cart-Token` and the latest `rowVersion`
-7. repeat checkout to verify idempotency by source cart id
+7. repeat checkout to verify idempotency by source cart id (and that reserved stock did not change again)
 8. confirm missing or invalid `X-Storefront-Cart-Token` returns `401`
+9. confirm the checkout reserved stock (admin `GET /api/admin/variants/{variantId}/inventory`) and that an order beyond available stock is rejected
+10. cancel the smoke order (admin `POST /api/admin/orders/{orderId}/status`) and confirm the reservation is released
+
+`scripts/seed-storefront-smoke.sh` runs all ten steps.
 
 Do this before starting payment initiation/callbacks or fuller cart mutation endpoints.
 

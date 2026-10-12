@@ -38,6 +38,35 @@ public sealed class EfInventoryBalanceRepository : IInventoryBalanceRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<InventoryBalance>> ListForUpdateAsync(
+        IReadOnlyCollection<Guid> variantIds,
+        IReadOnlyCollection<Guid> inventoryLocationIds,
+        CancellationToken cancellationToken)
+    {
+        if (variantIds.Count == 0 || inventoryLocationIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.InventoryBalances
+            .Where(x => variantIds.Contains(x.VariantId) && inventoryLocationIds.Contains(x.InventoryLocationId))
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<InventoryBalance>> GetByIdsForUpdateAsync(IReadOnlyCollection<Guid> inventoryBalanceIds, CancellationToken cancellationToken)
+    {
+        if (inventoryBalanceIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.InventoryBalances
+            .Where(x => inventoryBalanceIds.Contains(x.Id))
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<InventoryTransaction>> ListTransactionsByInventoryLocationAsync(Guid inventoryLocationId, int take, CancellationToken cancellationToken)
     {
         return await _dbContext.InventoryTransactions

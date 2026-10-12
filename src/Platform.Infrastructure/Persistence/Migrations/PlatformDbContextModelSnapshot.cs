@@ -871,6 +871,66 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     b.ToTable("ChannelMarketAssignment", "public");
                 });
 
+            modelBuilder.Entity("Platform.Domain.Catalog.Inventory.InventoryAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BackorderedQuantity")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InventoryBalanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InventoryLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryLocationId");
+
+                    b.HasIndex("VariantId");
+
+                    b.HasIndex("InventoryBalanceId", "Status");
+
+                    b.HasIndex("OrderId", "InventoryBalanceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_InventoryAllocation_OrderId_InventoryBalanceId");
+
+                    b.ToTable("InventoryAllocation", "public", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryAllocation_BackorderedQuantity", "\"BackorderedQuantity\" >= 0 AND \"BackorderedQuantity\" <= \"Quantity\"");
+
+                            t.HasCheckConstraint("CK_InventoryAllocation_Quantity", "\"Quantity\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Platform.Domain.Catalog.Inventory.InventoryBalance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1018,6 +1078,9 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<decimal>("ReservedQuantityDelta")
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1720,6 +1783,58 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductTranslation", "public");
+                });
+
+            modelBuilder.Entity("Platform.Domain.Catalog.Tax.VatRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("MarketId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<string>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TaxCategoryCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MarketId");
+
+                    b.HasIndex("TenantId", "MarketId", "TaxCategoryCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_VatRule_TenantId_MarketId_TaxCategoryCode");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "MarketId", "TaxCategoryCode"), false);
+
+                    b.ToTable("VatRule", "public", t =>
+                        {
+                            t.HasCheckConstraint("CK_VatRule_Rate", "\"Rate\" >= 0 AND \"Rate\" < 1");
+                        });
                 });
 
             modelBuilder.Entity("Platform.Domain.Catalog.Variants.Variant", b =>
@@ -2585,12 +2700,14 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     b.HasIndex("MarketId");
 
                     b.HasIndex("OrderNumber")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Order_OrderNumber");
 
                     b.HasIndex("PlacedAtUtc");
 
                     b.HasIndex("SourceCartId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_Order_SourceCartId");
 
                     b.HasIndex("Status");
 
@@ -2958,6 +3075,27 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Platform.Domain.Catalog.Inventory.InventoryAllocation", b =>
+                {
+                    b.HasOne("Platform.Domain.Catalog.Inventory.InventoryBalance", null)
+                        .WithMany()
+                        .HasForeignKey("InventoryBalanceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Platform.Domain.Catalog.Inventory.InventoryLocation", null)
+                        .WithMany()
+                        .HasForeignKey("InventoryLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Platform.Domain.Orders.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Platform.Domain.Catalog.Inventory.InventoryBalance", b =>
                 {
                     b.HasOne("Platform.Domain.Catalog.Inventory.InventoryLocation", null)
@@ -3140,6 +3278,15 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .WithMany("Translations")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Platform.Domain.Catalog.Tax.VatRule", b =>
+                {
+                    b.HasOne("Platform.Domain.Catalog.Markets.Market", null)
+                        .WithMany()
+                        .HasForeignKey("MarketId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
